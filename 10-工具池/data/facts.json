@@ -1,0 +1,1639 @@
+{
+  "memories": [
+    {
+      "id": "b5242a510ebc",
+      "fact": "老板叫孟白，喜欢折腾 Android 逆向和 AI 开发",
+      "category": "个人信息",
+      "keywords": [
+        "孟白",
+        "老板",
+        "Android",
+        "逆向",
+        "AI"
+      ],
+      "tokens": [
+        "老板叫孟",
+        "喜欢折腾",
+        "逆向和",
+        "开发",
+        "android",
+        "ai"
+      ],
+      "created_at": "2026-06-11T04:52:51.775415",
+      "last_seen": "2026-06-11T04:52:51.775431",
+      "count": 1
+    },
+    {
+      "id": "1dd391f4c522",
+      "fact": "手机是小米17 Pro Max，代号popsicle，Android 16，KSU root",
+      "category": "设备",
+      "keywords": [
+        "小米",
+        "手机",
+        "17",
+        "popsicle",
+        "root"
+      ],
+      "tokens": [
+        "手机是小",
+        "代号",
+        "pro",
+        "max",
+        "popsicle",
+        "android",
+        "ksu",
+        "root"
+      ],
+      "created_at": "2026-06-11T04:53:01.320775",
+      "last_seen": "2026-06-11T04:53:01.320804",
+      "count": 1
+    },
+    {
+      "id": "2989f7b08cf8",
+      "fact": "使用 Tailscale 直连手机，IP 100.85.46.114",
+      "category": "设备",
+      "keywords": [
+        "Tailscale",
+        "手机",
+        "IP",
+        "连接"
+      ],
+      "tokens": [
+        "使用",
+        "直连手机",
+        "tailscale",
+        "ip"
+      ],
+      "created_at": "2026-06-11T04:53:01.574001",
+      "last_seen": "2026-06-11T04:53:01.574018",
+      "count": 1
+    },
+    {
+      "id": "620256963f63",
+      "fact": "服务器是阿里云 ECS，公网 121.199.57.195",
+      "category": "设备",
+      "keywords": [
+        "服务器",
+        "ECS",
+        "阿里云",
+        "公网"
+      ],
+      "tokens": [
+        "服务器是",
+        "阿里云",
+        "公网",
+        "ecs"
+      ],
+      "created_at": "2026-06-11T04:53:01.799457",
+      "last_seen": "2026-06-11T04:53:01.799476",
+      "count": 1
+    },
+    {
+      "id": "2d38830c8a3c",
+      "fact": "在手机上安装了Termux，用Tailscale连服务器，平时喜欢折腾手机root和Xposed模块",
+      "category": "偏好",
+      "keywords": [
+        "Termux",
+        "Tailscale",
+        "手机root",
+        "Xposed模块"
+      ],
+      "tokens": [
+        "在手机上",
+        "安装了",
+        "连服务器",
+        "平时喜欢",
+        "折腾手机",
+        "模块",
+        "termux",
+        "tailscale",
+        "root",
+        "xposed"
+      ],
+      "created_at": "2026-06-11T04:54:02.360000",
+      "last_seen": "2026-06-11T04:54:02.360066",
+      "count": 1
+    },
+    {
+      "id": "5ed60d836b1e",
+      "fact": "旭创质量AI应用创意大赛截止6.18，4赛道全部完成初版",
+      "category": "项目",
+      "keywords": [
+        "旭创质量AI应用创意大赛",
+        "6.18",
+        "4赛道",
+        "初版"
+      ],
+      "tokens": [
+        "旭创质量",
+        "应用创意",
+        "大赛截止",
+        "赛道全部",
+        "完成初版",
+        "ai"
+      ],
+      "created_at": "2026-06-11T22:54:11.138980",
+      "last_seen": "2026-06-11T22:54:11.139005",
+      "count": 1
+    },
+    {
+      "id": "bcc3f53cccc9",
+      "fact": "文案组3篇扩充到15000+字，包括质量推文4320字、质量心得3591字、质量方案5019字",
+      "category": "项目",
+      "keywords": [
+        "文案组",
+        "15000+字",
+        "质量推文",
+        "质量心得",
+        "质量方案"
+      ],
+      "tokens": [
+        "文案组",
+        "篇扩充到",
+        "包括质量",
+        "推文",
+        "质量心得",
+        "质量方案"
+      ],
+      "created_at": "2026-06-11T22:54:11.139977",
+      "last_seen": "2026-06-11T22:54:11.140020",
+      "count": 1
+    },
+    {
+      "id": "7f7ed5e4d12c",
+      "fact": "综合组PPT扩充到16页、视频脚本8分30秒、配音文案2145字、视频提示词36个",
+      "category": "项目",
+      "keywords": [
+        "综合组",
+        "PPT",
+        "16页",
+        "视频脚本",
+        "配音文案",
+        "视频提示词"
+      ],
+      "tokens": [
+        "综合组",
+        "扩充到",
+        "视频脚本",
+        "配音文案",
+        "视频提示",
+        "ppt"
+      ],
+      "created_at": "2026-06-11T22:54:11.141456",
+      "last_seen": "2026-06-11T22:54:11.141473",
+      "count": 1
+    },
+    {
+      "id": "79a0ea9accf7",
+      "fact": "图片组有5组AI提示词（中英文），PPT图片提示词11页已生成",
+      "category": "项目",
+      "keywords": [
+        "图片组",
+        "AI提示词",
+        "PPT图片提示词"
+      ],
+      "tokens": [
+        "图片组有",
+        "提示词",
+        "中英文",
+        "图片提示",
+        "页已生成",
+        "ai",
+        "ppt"
+      ],
+      "created_at": "2026-06-11T22:54:11.142533",
+      "last_seen": "2026-06-11T22:54:11.142552",
+      "count": 1
+    },
+    {
+      "id": "9a07e4221a4e",
+      "fact": "工具技术组AI质量智能助手有20个代码文件6032行，使用Flask+SQLite+JWT+bcrypt",
+      "category": "项目",
+      "keywords": [
+        "工具技术组",
+        "AI质量智能助手",
+        "20个代码文件",
+        "6032行",
+        "Flask",
+        "SQLite",
+        "JWT",
+        "bcrypt"
+      ],
+      "tokens": [
+        "工具技术",
+        "质量智能",
+        "助手有",
+        "个代码文",
+        "使用",
+        "ai",
+        "flask",
+        "sqlite",
+        "jwt",
+        "bcrypt"
+      ],
+      "created_at": "2026-06-11T22:54:11.143966",
+      "last_seen": "2026-06-11T22:54:11.143990",
+      "count": 1
+    },
+    {
+      "id": "d63f3c89a476",
+      "fact": "Electron桌面版有41个文件，main.js 607行，有NSIS安装包配置，大小61MB",
+      "category": "项目",
+      "keywords": [
+        "Electron桌面版",
+        "41个文件",
+        "main.js",
+        "607行",
+        "NSIS安装包配置",
+        "61MB"
+      ],
+      "tokens": [
+        "桌面版有",
+        "个文件",
+        "安装包配",
+        "大小",
+        "electron",
+        "main",
+        "js",
+        "nsis",
+        "mb"
+      ],
+      "created_at": "2026-06-11T22:54:11.145453",
+      "last_seen": "2026-06-11T22:54:11.145476",
+      "count": 1
+    },
+    {
+      "id": "3e615ef615ed",
+      "fact": "安全审计完成，包括JWT密钥改为环境变量、SQL参数化、安全响应头",
+      "category": "项目",
+      "keywords": [
+        "安全审计",
+        "JWT密钥",
+        "环境变量",
+        "SQL参数化",
+        "安全响应头"
+      ],
+      "tokens": [
+        "安全审计",
+        "完成",
+        "包括",
+        "密钥改为",
+        "环境变量",
+        "参数化",
+        "安全响应",
+        "jwt",
+        "sql"
+      ],
+      "created_at": "2026-06-11T22:54:11.146874",
+      "last_seen": "2026-06-11T22:54:11.146948",
+      "count": 1
+    },
+    {
+      "id": "1631d12860ae",
+      "fact": "旭创质量AI应用创意大赛截止6.18，剩余6天",
+      "category": "日程",
+      "keywords": [
+        "旭创质量AI应用创意大赛",
+        "截止日期"
+      ],
+      "tokens": [
+        "旭创质量",
+        "应用创意",
+        "大赛截止",
+        "剩余",
+        "ai"
+      ],
+      "created_at": "2026-06-12T00:53:59.237708",
+      "last_seen": "2026-06-12T00:53:59.237852",
+      "count": 1
+    },
+    {
+      "id": "0086f098b862",
+      "fact": "旭创质量AI应用创意大赛文案组完成3篇，字数扩充到15000+字",
+      "category": "项目",
+      "keywords": [
+        "旭创质量AI应用创意大赛",
+        "文案组"
+      ],
+      "tokens": [
+        "旭创质量",
+        "应用创意",
+        "大赛文案",
+        "组完成",
+        "字数扩充",
+        "ai"
+      ],
+      "created_at": "2026-06-12T00:53:59.239187",
+      "last_seen": "2026-06-12T00:53:59.239207",
+      "count": 1
+    },
+    {
+      "id": "6e6736df4bb3",
+      "fact": "旭创质量AI应用创意大赛综合组有PPT、视频脚本等相关完成情况",
+      "category": "项目",
+      "keywords": [
+        "旭创质量AI应用创意大赛",
+        "综合组"
+      ],
+      "tokens": [
+        "旭创质量",
+        "应用创意",
+        "大赛综合",
+        "组有",
+        "视频脚本",
+        "等相关完",
+        "成情况",
+        "ai",
+        "ppt"
+      ],
+      "created_at": "2026-06-12T00:53:59.240646",
+      "last_seen": "2026-06-12T00:53:59.240676",
+      "count": 1
+    },
+    {
+      "id": "f6a6a4933574",
+      "fact": "旭创质量AI应用创意大赛图片组有6个AI提示词文件（中英文）",
+      "category": "项目",
+      "keywords": [
+        "旭创质量AI应用创意大赛",
+        "图片组"
+      ],
+      "tokens": [
+        "旭创质量",
+        "应用创意",
+        "大赛图片",
+        "组有",
+        "提示词文",
+        "中英文",
+        "ai",
+        "ai"
+      ],
+      "created_at": "2026-06-12T00:53:59.242098",
+      "last_seen": "2026-06-12T00:53:59.242120",
+      "count": 1
+    },
+    {
+      "id": "e2f03f468d75",
+      "fact": "旭创质量AI应用创意大赛工具技术组代码行数情况",
+      "category": "项目",
+      "keywords": [
+        "旭创质量AI应用创意大赛",
+        "工具技术组",
+        "代码行数"
+      ],
+      "tokens": [
+        "旭创质量",
+        "应用创意",
+        "大赛工具",
+        "技术组代",
+        "码行数情",
+        "ai"
+      ],
+      "created_at": "2026-06-12T00:53:59.243841",
+      "last_seen": "2026-06-12T00:53:59.243867",
+      "count": 1
+    },
+    {
+      "id": "d07a914723b7",
+      "fact": "旭创质量AI应用创意大赛Electron桌面版有7166个文件，含NSIS安装包配置",
+      "category": "项目",
+      "keywords": [
+        "旭创质量AI应用创意大赛",
+        "Electron桌面版"
+      ],
+      "tokens": [
+        "旭创质量",
+        "应用创意",
+        "大赛",
+        "桌面版有",
+        "个文件",
+        "安装包配",
+        "ai",
+        "electron",
+        "nsis"
+      ],
+      "created_at": "2026-06-12T00:53:59.245418",
+      "last_seen": "2026-06-12T00:53:59.245434",
+      "count": 1
+    },
+    {
+      "id": "f6c259e95294",
+      "fact": "旭创质量AI应用创意大赛安全审计完成，有JWT等内容",
+      "category": "项目",
+      "keywords": [
+        "旭创质量AI应用创意大赛",
+        "安全审计"
+      ],
+      "tokens": [
+        "旭创质量",
+        "应用创意",
+        "大赛安全",
+        "审计完成",
+        "等内容",
+        "ai",
+        "jwt"
+      ],
+      "created_at": "2026-06-12T00:53:59.246957",
+      "last_seen": "2026-06-12T00:53:59.246977",
+      "count": 1
+    },
+    {
+      "id": "55c6cb73330b",
+      "fact": "旭创质量AI应用创意大赛评审情况：Kimi 133/300，MiMo 61/300（评的旧代码）",
+      "category": "项目",
+      "keywords": [
+        "旭创质量AI应用创意大赛",
+        "评审"
+      ],
+      "tokens": [
+        "旭创质量",
+        "应用创意",
+        "大赛评审",
+        "情况",
+        "评的旧代",
+        "ai",
+        "kimi",
+        "mimo"
+      ],
+      "created_at": "2026-06-12T00:53:59.248587",
+      "last_seen": "2026-06-12T00:53:59.248605",
+      "count": 1
+    },
+    {
+      "id": "39c907ce6fa4",
+      "fact": "黄小红ex-skill项目聊天记录有24996条（2023-11-26到2026-06-10）",
+      "category": "项目",
+      "keywords": [
+        "黄小红ex-skill项目",
+        "聊天记录"
+      ],
+      "tokens": [
+        "黄小红",
+        "项目聊天",
+        "记录有",
+        "ex",
+        "skill"
+      ],
+      "created_at": "2026-06-12T00:53:59.250502",
+      "last_seen": "2026-06-12T00:53:59.250519",
+      "count": 1
+    },
+    {
+      "id": "705741654d51",
+      "fact": "老板让搭建MiClaw免费模型服务，从源码编译MiClaw API Bridge部署在端口8765，已登录小米账号，8个模型免费用，主力模型为miclaw/xiaomi/mimo-pro，fallback为小米Token Plan",
+      "category": "项目",
+      "keywords": [
+        "MiClaw",
+        "模型服务",
+        "源码编译",
+        "MiClaw API Bridge",
+        "端口8765",
+        "小米账号",
+        "miclaw/xiaomi/mimo-pro",
+        "小米Token Plan"
+      ],
+      "tokens": [
+        "老板让搭",
+        "免费模型",
+        "服务",
+        "从源码编",
+        "部署在端",
+        "已登录小",
+        "米账号",
+        "个模型免",
+        "费用",
+        "主力模型",
+        "为小米",
+        "miclaw",
+        "miclaw",
+        "api",
+        "bridge",
+        "miclaw",
+        "xiaomi",
+        "mimo",
+        "pro",
+        "fallback",
+        "token",
+        "plan"
+      ],
+      "created_at": "2026-06-12T09:39:05.771862",
+      "last_seen": "2026-06-12T09:39:05.771900",
+      "count": 1
+    },
+    {
+      "id": "1ebda19650e6",
+      "fact": "DeepSeek免费代理端口8899工作正常但不适合当OpenClaw主力，因网页爬虫套壳格式不兼容，支持联网搜索、深度思考、专家模式",
+      "category": "项目",
+      "keywords": [
+        "DeepSeek",
+        "免费代理",
+        "端口8899",
+        "OpenClaw",
+        "网页爬虫套壳",
+        "联网搜索",
+        "深度思考",
+        "专家模式"
+      ],
+      "tokens": [
+        "免费代理",
+        "端口",
+        "工作正常",
+        "但不适合",
+        "主力",
+        "因网页爬",
+        "虫套壳格",
+        "式不兼容",
+        "支持联网",
+        "搜索",
+        "深度思考",
+        "专家模式",
+        "deepseek",
+        "openclaw"
+      ],
+      "created_at": "2026-06-12T09:39:05.773327",
+      "last_seen": "2026-06-12T09:39:05.773349",
+      "count": 1
+    },
+    {
+      "id": "3a9f3dfc0c66",
+      "fact": "超级小爱语音唤醒劫持项目未完成，基础部署在/data/adb/chaojixiaoai/",
+      "category": "项目",
+      "keywords": [
+        "超级小爱",
+        "语音唤醒劫持项目",
+        "/data/adb/chaojixiaoai/"
+      ],
+      "tokens": [
+        "超级小爱",
+        "语音唤醒",
+        "劫持项目",
+        "未完成",
+        "基础部署",
+        "data",
+        "adb",
+        "chaojixiaoai"
+      ],
+      "created_at": "2026-06-12T09:39:05.775281",
+      "last_seen": "2026-06-12T09:39:05.775304",
+      "count": 1
+    },
+    {
+      "id": "9712f7c0ee0e",
+      "fact": "固定对话框技巧为x_protocol.conversation_id参数",
+      "category": "其他",
+      "keywords": [
+        "固定对话框技巧",
+        "x_protocol.conversation_id"
+      ],
+      "tokens": [
+        "固定对话",
+        "框技巧为",
+        "参数",
+        "x",
+        "protocol",
+        "conversation",
+        "id"
+      ],
+      "created_at": "2026-06-12T09:39:05.777423",
+      "last_seen": "2026-06-12T09:39:05.777440",
+      "count": 1
+    },
+    {
+      "id": "eb294de0c870",
+      "fact": "服务器GLIBC版本2.32太低，预编译的MiClaw二进制跑不了，需从源码编译；Docker Hub被墙，Docker构建不可用；启动MiClaw需设置MICLAW_API_BRIDGE_DISABLE_KEYRING=1环境变量，否则zbus runtime panic；需--host 0.0.0.0才能外部访问",
+      "category": "其他",
+      "keywords": [
+        "服务器GLIBC版本2.32",
+        "MiClaw",
+        "源码编译",
+        "Docker Hub",
+        "Docker构建",
+        "MICLAW_API_BRIDGE_DISABLE_KEYRING=1",
+        "zbus runtime panic",
+        "--host 0.0.0.0"
+      ],
+      "tokens": [
+        "服务器",
+        "版本",
+        "太低",
+        "预编译的",
+        "二进制跑",
+        "不了",
+        "需从源码",
+        "编译",
+        "被墙",
+        "构建不可",
+        "启动",
+        "需设置",
+        "环境变量",
+        "否则",
+        "才能外部",
+        "访问",
+        "glibc",
+        "miclaw",
+        "docker",
+        "hub",
+        "docker",
+        "miclaw",
+        "miclaw",
+        "api",
+        "bridge",
+        "disable",
+        "keyring",
+        "zbus",
+        "runtime",
+        "panic",
+        "host"
+      ],
+      "created_at": "2026-06-12T09:39:57.643890",
+      "last_seen": "2026-06-12T09:39:57.643916",
+      "count": 1
+    },
+    {
+      "id": "282d4fbafb0b",
+      "fact": "老板叫韩望龙，重视免费API，喜欢精细度高的分析，对项目有明确规划",
+      "category": "偏好",
+      "keywords": [
+        "韩望龙",
+        "免费API",
+        "精细度高的分析",
+        "项目规划"
+      ],
+      "tokens": [
+        "老板叫韩",
+        "望龙",
+        "重视免费",
+        "喜欢精细",
+        "度高的分",
+        "对项目有",
+        "明确规划",
+        "api"
+      ],
+      "created_at": "2026-06-12T09:39:59.947478",
+      "last_seen": "2026-06-12T09:39:59.947517",
+      "count": 1
+    },
+    {
+      "id": "caea6c70e944",
+      "fact": "用户叫孟白，也叫韩望龙",
+      "category": "个人信息",
+      "keywords": [
+        "孟白",
+        "韩望龙"
+      ],
+      "tokens": [
+        "用户叫孟",
+        "也叫韩望"
+      ],
+      "created_at": "2026-06-12T09:44:05.739886",
+      "last_seen": "2026-06-12T09:44:05.739925",
+      "count": 1
+    },
+    {
+      "id": "e52698243f62",
+      "fact": "手机端AI叫小爪，是云端AI大脑的手机端身体",
+      "category": "设备",
+      "keywords": [
+        "小爪",
+        "云端AI大脑",
+        "手机端AI"
+      ],
+      "tokens": [
+        "手机端",
+        "叫小爪",
+        "是云端",
+        "大脑的手",
+        "机端身体",
+        "ai",
+        "ai"
+      ],
+      "created_at": "2026-06-12T09:44:05.742164",
+      "last_seen": "2026-06-12T09:44:05.742182",
+      "count": 1
+    },
+    {
+      "id": "f3f84aff4171",
+      "fact": "小梦和爱玛仕共享记忆体系，小梦负责复杂分析，爱玛仕负责工具执行",
+      "category": "关系",
+      "keywords": [
+        "小梦",
+        "爱玛仕",
+        "记忆体系",
+        "复杂分析",
+        "工具执行"
+      ],
+      "tokens": [
+        "小梦和爱",
+        "玛仕共享",
+        "记忆体系",
+        "小梦负责",
+        "复杂分析",
+        "爱玛仕负",
+        "责工具执"
+      ],
+      "created_at": "2026-06-12T09:44:09.230393",
+      "last_seen": "2026-06-12T09:44:09.230429",
+      "count": 1
+    },
+    {
+      "id": "dc28af6924ed",
+      "fact": "DeepSeek免费代理为localhost:8899，爱玛仕过滤代理为localhost:8900",
+      "category": "设备",
+      "keywords": [
+        "DeepSeek",
+        "免费代理",
+        "localhost:8899",
+        "爱玛仕",
+        "过滤代理",
+        "localhost:8900"
+      ],
+      "tokens": [
+        "免费代理",
+        "爱玛仕过",
+        "滤代理为",
+        "deepseek",
+        "localhost",
+        "localhost"
+      ],
+      "created_at": "2026-06-12T09:44:09.232680",
+      "last_seen": "2026-06-12T09:44:09.232705",
+      "count": 1
+    },
+    {
+      "id": "3afa03384c29",
+      "fact": "超级小爱唤醒Hook系统已完成，位置在/data/adb/xiaomeng/workspace/xiaomi-wake-hook/，有Xposed模块源码和Shell脚本两种方案，Shell脚本方案通过监控logcat检测唤醒事件，MCP Server端口18800",
+      "category": "其他",
+      "keywords": [
+        "超级小爱唤醒Hook系统",
+        "xiaomi-wake-hook",
+        "Xposed模块源码",
+        "Shell脚本",
+        "logcat",
+        "MCP Server",
+        "18800"
+      ],
+      "tokens": [
+        "超级小爱",
+        "唤醒",
+        "系统已完",
+        "位置在",
+        "模块源码",
+        "脚本两种",
+        "方案",
+        "脚本方案",
+        "通过监控",
+        "检测唤醒",
+        "事件",
+        "端口",
+        "hook",
+        "data",
+        "adb",
+        "xiaomeng",
+        "workspace",
+        "xiaomi",
+        "wake",
+        "hook",
+        "xposed",
+        "shell",
+        "shell",
+        "logcat",
+        "mcp",
+        "server"
+      ],
+      "created_at": "2026-06-12T09:44:12.623943",
+      "last_seen": "2026-06-12T09:44:12.623968",
+      "count": 1
+    },
+    {
+      "id": "9a8fff283434",
+      "fact": "包名com.xiaomi.type，使用Taiyi SDK连接AI服务，AIVSE SDK做语音识别和唤醒词检测，支持MCP协议连接外部工具，有91个内置工具，可通过自建MCP Server或Taiyi SDK直连进行劫持",
+      "category": "其他",
+      "keywords": [
+        "MiClaw",
+        "com.xiaomi.type",
+        "Taiyi SDK",
+        "AIVSE SDK",
+        "语音识别",
+        "唤醒词检测",
+        "MCP协议",
+        "内置工具",
+        "自建MCP Server"
+      ],
+      "tokens": [
+        "包名",
+        "使用",
+        "连接",
+        "服务",
+        "做语音识",
+        "别和唤醒",
+        "词检测",
+        "支持",
+        "协议连接",
+        "外部工具",
+        "个内置工",
+        "可通过自",
+        "直连进行",
+        "劫持",
+        "com",
+        "xiaomi",
+        "type",
+        "taiyi",
+        "sdk",
+        "ai",
+        "aivse",
+        "sdk",
+        "mcp",
+        "mcp",
+        "server",
+        "taiyi",
+        "sdk"
+      ],
+      "created_at": "2026-06-12T09:44:15.286582",
+      "last_seen": "2026-06-12T09:44:15.286615",
+      "count": 1
+    },
+    {
+      "id": "5bf7c851d806",
+      "fact": "阿里云ECS的IP为121.199.57.195，已部署OpenClaw，端口19001，模型为mimo-v2.5-pro，QQ Bot appId为1904138826，安全组未放行19001端口",
+      "category": "项目",
+      "keywords": [
+        "阿里云ECS",
+        "OpenClaw",
+        "19001端口",
+        "mimo-v2.5-pro",
+        "QQ Bot appId",
+        "安全组"
+      ],
+      "tokens": [
+        "阿里云",
+        "已部署",
+        "端口",
+        "模型为",
+        "安全组未",
+        "放行",
+        "端口",
+        "ecs",
+        "ip",
+        "openclaw",
+        "mimo",
+        "v",
+        "pro",
+        "qq",
+        "bot",
+        "appid"
+      ],
+      "created_at": "2026-06-12T09:44:18.722239",
+      "last_seen": "2026-06-12T09:51:53.160145",
+      "count": 2
+    },
+    {
+      "id": "49821f39a8bf",
+      "fact": "AI智囊团架构为小梦（主大脑，OpenClaw）+爱玛仕（副脑，Hermes Agent），小梦负责复杂分析，爱玛仕负责工具执行，主人叫孟白",
+      "category": "其他",
+      "keywords": [
+        "AI智囊团",
+        "小梦",
+        "OpenClaw",
+        "爱玛仕",
+        "Hermes Agent",
+        "复杂分析",
+        "工具执行",
+        "孟白"
+      ],
+      "tokens": [
+        "智囊团架",
+        "构为小梦",
+        "主大脑",
+        "爱玛仕",
+        "副脑",
+        "小梦负责",
+        "复杂分析",
+        "爱玛仕负",
+        "责工具执",
+        "主人叫孟",
+        "ai",
+        "openclaw",
+        "hermes",
+        "agent"
+      ],
+      "created_at": "2026-06-12T09:51:11.210211",
+      "last_seen": "2026-06-12T09:51:11.210226",
+      "count": 1
+    },
+    {
+      "id": "3e1f636ec3b8",
+      "fact": "AI智囊团核心规则为禁止自重启、所有命令商量后执行、全权限自治、领地互不侵犯；小梦领地为/data/data/com.termux/files/home/.openclaw/，爱玛仕领地为.hermes和Hermes_Agent/，共享区为/storage/emulated/0/且需先告知再动",
+      "category": "其他",
+      "keywords": [
+        "AI智囊团核心规则",
+        "小梦领地",
+        "爱玛仕领地",
+        "共享区"
+      ],
+      "tokens": [
+        "智囊团核",
+        "心规则为",
+        "禁止自重",
+        "所有命令",
+        "商量后执",
+        "全权限自",
+        "领地互不",
+        "侵犯",
+        "小梦领地",
+        "爱玛仕领",
+        "地为",
+        "共享区为",
+        "且需先告",
+        "知再动",
+        "ai",
+        "data",
+        "data",
+        "com",
+        "termux",
+        "files",
+        "home",
+        "openclaw",
+        "hermes",
+        "hermes",
+        "agent",
+        "storage",
+        "emulated"
+      ],
+      "created_at": "2026-06-12T09:51:14.591937",
+      "last_seen": "2026-06-12T09:51:14.591986",
+      "count": 1
+    },
+    {
+      "id": "e6b32b3b1e9d",
+      "fact": "2026-06-04爱玛仕清理操作覆盖了小梦的openclaw.json导致providers被清空，由此诞生互不侵犯协议",
+      "category": "其他",
+      "keywords": [
+        "2026-06-04",
+        "爱玛仕",
+        "小梦",
+        "openclaw.json",
+        "providers",
+        "互不侵犯协议"
+      ],
+      "tokens": [
+        "爱玛仕清",
+        "理操作覆",
+        "盖了小梦",
+        "导致",
+        "被清空",
+        "由此诞生",
+        "互不侵犯",
+        "协议",
+        "openclaw",
+        "json",
+        "providers"
+      ],
+      "created_at": "2026-06-12T09:51:18.244564",
+      "last_seen": "2026-06-12T09:51:18.244660",
+      "count": 1
+    },
+    {
+      "id": "187d8fa4a10c",
+      "fact": "小梦系统层于2026-06-08升级，从Termux用户层升级为Android系统层服务，安装目录为/data/adb/xiaomeng/，端口19001，使用Node.js v24.15.0 + OpenClaw完整程序743MB，进行Magisk模块打包",
+      "category": "其他",
+      "keywords": [
+        "小梦系统层升级",
+        "2026-06-08",
+        "Termux用户层",
+        "Android系统层服务",
+        "/data/adb/xiaomeng/",
+        "19001",
+        "Node.js v24.15.0",
+        "OpenClaw完整程序",
+        "743MB",
+        "Magisk模块打包"
+      ],
+      "tokens": [
+        "小梦系统",
+        "层于",
+        "升级",
+        "用户层升",
+        "级为",
+        "系统层服",
+        "安装目录",
+        "端口",
+        "使用",
+        "完整程序",
+        "进行",
+        "模块打包",
+        "termux",
+        "android",
+        "data",
+        "adb",
+        "xiaomeng",
+        "node",
+        "js",
+        "v",
+        "openclaw",
+        "mb",
+        "magisk"
+      ],
+      "created_at": "2026-06-12T09:51:22.686754",
+      "last_seen": "2026-06-12T09:51:22.686771",
+      "count": 1
+    },
+    {
+      "id": "a33c1220c7d8",
+      "fact": "超级小爱唤醒Hook已完成Shell脚本方案，通过监控logcat检测唤醒事件，Xposed模块源码已写但未编译APK，MCP Server端口18800",
+      "category": "项目",
+      "keywords": [
+        "超级小爱唤醒Hook",
+        "Shell脚本",
+        "logcat",
+        "Xposed模块",
+        "MCP Server",
+        "18800"
+      ],
+      "tokens": [
+        "超级小爱",
+        "唤醒",
+        "已完成",
+        "脚本方案",
+        "通过监控",
+        "检测唤醒",
+        "事件",
+        "模块源码",
+        "已写但未",
+        "编译",
+        "端口",
+        "hook",
+        "shell",
+        "logcat",
+        "xposed",
+        "apk",
+        "mcp",
+        "server"
+      ],
+      "created_at": "2026-06-12T09:51:26.421609",
+      "last_seen": "2026-06-12T09:51:26.421639",
+      "count": 1
+    },
+    {
+      "id": "d6a8846fbe3d",
+      "fact": "包名com.xiaomi.type，有91个内置工具，支持MCP协议，可用Taiyi SDK直连或自建MCP Server进行劫持，使用AIVSE SDK做语音识别和唤醒词检测",
+      "category": "其他",
+      "keywords": [
+        "MiClaw",
+        "com.xiaomi.type",
+        "内置工具",
+        "MCP协议",
+        "Taiyi SDK",
+        "自建MCP Server",
+        "劫持",
+        "AIVSE SDK",
+        "语音识别",
+        "唤醒词检测"
+      ],
+      "tokens": [
+        "包名",
+        "个内置工",
+        "支持",
+        "协议",
+        "可用",
+        "直连或自",
+        "进行劫持",
+        "使用",
+        "做语音识",
+        "别和唤醒",
+        "词检测",
+        "com",
+        "xiaomi",
+        "type",
+        "mcp",
+        "taiyi",
+        "sdk",
+        "mcp",
+        "server",
+        "aivse",
+        "sdk"
+      ],
+      "created_at": "2026-06-12T09:51:29.548914",
+      "last_seen": "2026-06-12T09:51:29.548951",
+      "count": 1
+    },
+    {
+      "id": "71b73b6f8253",
+      "fact": "免费DeepSeek代理localhost:8899作为OpenClaw主力模型时memory_get和read工具不工作，只能用exec cat读文件，爱玛仕过滤代理localhost:8900拦截tool_json泄露",
+      "category": "其他",
+      "keywords": [
+        "DeepSeek代理",
+        "localhost:8899",
+        "OpenClaw",
+        "memory_get",
+        "read工具",
+        "exec cat",
+        "读文件",
+        "爱玛仕过滤代理",
+        "localhost:8900",
+        "tool_json泄露"
+      ],
+      "tokens": [
+        "免费",
+        "代理",
+        "作为",
+        "主力模型",
+        "工具不工",
+        "只能用",
+        "读文件",
+        "爱玛仕过",
+        "滤代理",
+        "拦截",
+        "泄露",
+        "deepseek",
+        "localhost",
+        "openclaw",
+        "memory",
+        "get",
+        "read",
+        "exec",
+        "cat",
+        "localhost",
+        "tool",
+        "json"
+      ],
+      "created_at": "2026-06-12T09:51:33.352326",
+      "last_seen": "2026-06-12T09:51:33.352389",
+      "count": 1
+    },
+    {
+      "id": "76e247a94308",
+      "fact": "手机设备为小米17 Pro Max (2509FPN0BC)，系统是Android 16和HyperOS 3.0，已KernelSU Root，存储为970GB",
+      "category": "设备",
+      "keywords": [
+        "小米17 Pro Max (2509FPN0BC)",
+        "Android 16",
+        "HyperOS 3.0",
+        "KernelSU Root",
+        "970GB存储"
+      ],
+      "tokens": [
+        "手机设备",
+        "为小米",
+        "系统是",
+        "存储为",
+        "pro",
+        "max",
+        "fpn",
+        "bc",
+        "android",
+        "hyperos",
+        "kernelsu",
+        "root",
+        "gb"
+      ],
+      "created_at": "2026-06-12T09:51:36.970796",
+      "last_seen": "2026-06-12T09:51:36.970824",
+      "count": 1
+    },
+    {
+      "id": "ff3668d665f3",
+      "fact": "深度思考引擎v3.0设计使用免费DeepSeek做主力思考生成，付费DeepSeek做轻量判断器输出JSON决策，所有日志保存到AI智囊团运行文件夹/AI运行日志/",
+      "category": "项目",
+      "keywords": [
+        "深度思考引擎v3.0",
+        "免费DeepSeek",
+        "付费DeepSeek",
+        "AI智囊团",
+        "AI运行日志"
+      ],
+      "tokens": [
+        "深度思考",
+        "引擎",
+        "设计使用",
+        "免费",
+        "做主力思",
+        "考生成",
+        "付费",
+        "做轻量判",
+        "断器输出",
+        "决策",
+        "所有日志",
+        "保存到",
+        "智囊团运",
+        "行文件夹",
+        "运行日志",
+        "v",
+        "deepseek",
+        "deepseek",
+        "json",
+        "ai",
+        "ai"
+      ],
+      "created_at": "2026-06-12T09:51:41.002006",
+      "last_seen": "2026-06-12T09:51:41.002100",
+      "count": 1
+    },
+    {
+      "id": "f092a970b147",
+      "fact": "爱玛仕角色定位为主人制定的观察者、工具、备份、智能进程守护",
+      "category": "其他",
+      "keywords": [
+        "爱玛仕",
+        "角色定位",
+        "观察者",
+        "工具",
+        "备份",
+        "智能进程守护"
+      ],
+      "tokens": [
+        "爱玛仕角",
+        "色定位为",
+        "主人制定",
+        "的观察者",
+        "工具",
+        "备份",
+        "智能进程",
+        "守护"
+      ],
+      "created_at": "2026-06-12T09:51:43.335351",
+      "last_seen": "2026-06-12T09:51:43.335373",
+      "count": 1
+    },
+    {
+      "id": "98f19bd29a41",
+      "fact": "共享记忆文件为/data/data/com.termux/files/home/shared_memory/SHARED_MEMORY.md，由小梦和爱玛仕共同维护，name_memory.txt存用户名孟白",
+      "category": "其他",
+      "keywords": [
+        "共享记忆文件",
+        "小梦",
+        "爱玛仕",
+        "name_memory.txt",
+        "孟白"
+      ],
+      "tokens": [
+        "共享记忆",
+        "文件为",
+        "由小梦和",
+        "爱玛仕共",
+        "同维护",
+        "存用户名",
+        "孟白",
+        "data",
+        "data",
+        "com",
+        "termux",
+        "files",
+        "home",
+        "shared",
+        "memory",
+        "shared",
+        "memory",
+        "md",
+        "name",
+        "memory",
+        "txt"
+      ],
+      "created_at": "2026-06-12T09:51:46.400598",
+      "last_seen": "2026-06-12T09:51:46.400620",
+      "count": 1
+    },
+    {
+      "id": "1013a8f37739",
+      "fact": "乐子备份目录为/storage/emulated/0/乐子备份/，包含openclaw.json备份、hermes config备份、互不侵犯协议COORDINATION_RULES.md，2026-06-04起强制执行",
+      "category": "其他",
+      "keywords": [
+        "乐子备份目录",
+        "storage/emulated/0/乐子备份/",
+        "openclaw.json备份",
+        "hermes config备份",
+        "互不侵犯协议COORDINATION_RULES.md",
+        "2026-06-04"
+      ],
+      "tokens": [
+        "乐子备份",
+        "目录为",
+        "乐子备份",
+        "包含",
+        "备份",
+        "备份",
+        "互不侵犯",
+        "协议",
+        "起强制执",
+        "storage",
+        "emulated",
+        "openclaw",
+        "json",
+        "hermes",
+        "config",
+        "coordination",
+        "rules",
+        "md"
+      ],
+      "created_at": "2026-06-12T09:51:49.999942",
+      "last_seen": "2026-06-12T09:51:49.999971",
+      "count": 1
+    },
+    {
+      "id": "2514ee8c3e44",
+      "fact": "MiClaw使用OpenAI兼容API端点api.mify.mioffice.cn/v1/chat/completions，其调用链为MiClaw→Taiyi SDK→ILLMManager IPC→LLMManagerService→HTTP API",
+      "category": "其他",
+      "keywords": [
+        "MiClaw",
+        "OpenAI兼容API",
+        "api.mify.mioffice.cn/v1/chat/completions",
+        "调用链",
+        "Taiyi SDK",
+        "ILLMManager IPC",
+        "LLMManagerService",
+        "HTTP API"
+      ],
+      "tokens": [
+        "使用",
+        "兼容",
+        "端点",
+        "其调用链",
+        "miclaw",
+        "openai",
+        "api",
+        "api",
+        "mify",
+        "mioffice",
+        "cn",
+        "v",
+        "chat",
+        "completions",
+        "miclaw",
+        "taiyi",
+        "sdk",
+        "illmmanager",
+        "ipc",
+        "llmmanagerservice",
+        "http",
+        "api"
+      ],
+      "created_at": "2026-06-12T11:15:58.510998",
+      "last_seen": "2026-06-12T11:15:58.511028",
+      "count": 1
+    },
+    {
+      "id": "eb58b3c05b2f",
+      "fact": "MiClaw劫持方案为修改hosts把api.mify.mioffice.cn指向127.0.0.1，本地代理转发到OpenClaw Gateway，所有工具保留只换AI内核",
+      "category": "其他",
+      "keywords": [
+        "MiClaw劫持方案",
+        "api.mify.mioffice.cn",
+        "127.0.0.1",
+        "OpenClaw Gateway",
+        "AI内核"
+      ],
+      "tokens": [
+        "劫持方案",
+        "为修改",
+        "指向",
+        "本地代理",
+        "转发到",
+        "所有工具",
+        "保留只换",
+        "内核",
+        "miclaw",
+        "hosts",
+        "api",
+        "mify",
+        "mioffice",
+        "cn",
+        "openclaw",
+        "gateway",
+        "ai"
+      ],
+      "created_at": "2026-06-12T11:16:01.500283",
+      "last_seen": "2026-06-12T11:16:01.500299",
+      "count": 1
+    },
+    {
+      "id": "fc7192ccdf33",
+      "fact": "MiClaw魔改版有386个工具覆盖，26个Agent，涵盖系统、通讯等多类别",
+      "category": "其他",
+      "keywords": [
+        "MiClaw魔改版",
+        "工具",
+        "Agent",
+        "系统",
+        "通讯",
+        "文件",
+        "媒体",
+        "应用",
+        "日历",
+        "笔记",
+        "浏览器",
+        "语音",
+        "设备互联",
+        "管理",
+        "搜索",
+        "生活服务",
+        "图片编辑",
+        "账号",
+        "云服务",
+        "开发者"
+      ],
+      "tokens": [
+        "魔改版有",
+        "个工具覆",
+        "涵盖系统",
+        "通讯等多",
+        "类别",
+        "miclaw",
+        "agent"
+      ],
+      "created_at": "2026-06-12T11:16:04.895170",
+      "last_seen": "2026-06-12T11:16:04.895207",
+      "count": 1
+    },
+    {
+      "id": "db2e1b502738",
+      "fact": "MiClaw四版APK有云端沙箱(74MB,11Agent)、可以安装但闪退的(22MB,2Agent)、有本地沙箱但安装不了的(61MB,13Agent)、魔改版带sese(71MB,26Agent)",
+      "category": "其他",
+      "keywords": [
+        "MiClaw四版APK",
+        "云端沙箱",
+        "闪退",
+        "本地沙箱",
+        "魔改版",
+        "sese"
+      ],
+      "tokens": [
+        "四版",
+        "有云端沙",
+        "可以安装",
+        "但闪退的",
+        "有本地沙",
+        "箱但安装",
+        "不了的",
+        "魔改版带",
+        "miclaw",
+        "apk",
+        "mb",
+        "agent",
+        "mb",
+        "agent",
+        "mb",
+        "agent",
+        "sese",
+        "mb",
+        "agent"
+      ],
+      "created_at": "2026-06-12T11:16:07.973590",
+      "last_seen": "2026-06-12T11:16:07.973644",
+      "count": 1
+    },
+    {
+      "id": "e5b14be183ce",
+      "fact": "MiClaw沙箱工具包含shell_exec、code_run、pip_install、npm_install、data_analysis、image_process、file_convert功能，通过sandbox_mcp_server.py提供",
+      "category": "项目",
+      "keywords": [
+        "MiClaw沙箱工具",
+        "shell_exec",
+        "code_run",
+        "pip_install",
+        "npm_install",
+        "data_analysis",
+        "image_process",
+        "file_convert",
+        "sandbox_mcp_server.py"
+      ],
+      "tokens": [
+        "沙箱工具",
+        "包含",
+        "功能",
+        "通过",
+        "提供",
+        "miclaw",
+        "shell",
+        "exec",
+        "code",
+        "run",
+        "pip",
+        "install",
+        "npm",
+        "install",
+        "data",
+        "analysis",
+        "image",
+        "process",
+        "file",
+        "convert",
+        "sandbox",
+        "mcp",
+        "server",
+        "py"
+      ],
+      "created_at": "2026-06-12T11:16:10.962604",
+      "last_seen": "2026-06-12T11:16:10.962622",
+      "count": 1
+    },
+    {
+      "id": "d41d8cd98f00",
+      "fact": "",
+      "category": "其他",
+      "keywords": [
+        "测试",
+        "记忆保存"
+      ],
+      "tokens": [],
+      "created_at": "2026-06-12T23:03:48.047099",
+      "last_seen": "2026-06-12T23:07:22.101035",
+      "count": 6
+    },
+    {
+      "id": "08889b67f78d",
+      "fact": "DeepSeek+MiClaw混合深度思考引擎v4.0已验证通过，DeepSeek做大脑生成思考+指令，MiClaw做手脚执行指令，24/24测试通过，端到端测试成功",
+      "category": "其他",
+      "keywords": [
+        "DeepSeek+MiClaw混合深度思考引擎v4.0",
+        "DeepSeek",
+        "MiClaw",
+        "24/24测试",
+        "端到端测试"
+      ],
+      "tokens": [
+        "混合深度",
+        "思考引擎",
+        "已验证通",
+        "做大脑生",
+        "成思考",
+        "指令",
+        "做手脚执",
+        "行指令",
+        "测试通过",
+        "端到端测",
+        "试成功",
+        "deepseek",
+        "miclaw",
+        "v",
+        "deepseek",
+        "miclaw"
+      ],
+      "created_at": "2026-06-12T23:07:57.124423",
+      "last_seen": "2026-06-12T23:07:57.124459",
+      "count": 1
+    },
+    {
+      "id": "7bb7f031ec20",
+      "fact": "指令越明确DeepSeek越听话，模糊任务容易幻觉，强制用#exec指令比让DeepSeek自行决定更可靠",
+      "category": "其他",
+      "keywords": [
+        "DeepSeek",
+        "指令",
+        "幻觉",
+        "#exec指令"
+      ],
+      "tokens": [
+        "指令越明",
+        "越听话",
+        "模糊任务",
+        "容易幻觉",
+        "强制用",
+        "指令比让",
+        "自行决定",
+        "更可靠",
+        "deepseek",
+        "exec",
+        "deepseek"
+      ],
+      "created_at": "2026-06-12T23:07:59.283493",
+      "last_seen": "2026-06-12T23:07:59.283509",
+      "count": 1
+    },
+    {
+      "id": "ed388f994394",
+      "fact": "混合引擎位置为/root/miclaw-apk-analysis/hybrid_engine/，核心文件有deepseek_brain.py(引擎)、test_suite.py(测试)、SKILL.md(文档)",
+      "category": "项目",
+      "keywords": [
+        "混合引擎",
+        "deepseek_brain.py",
+        "test_suite.py",
+        "SKILL.md"
+      ],
+      "tokens": [
+        "混合引擎",
+        "位置为",
+        "核心文件",
+        "引擎",
+        "测试",
+        "文档",
+        "root",
+        "miclaw",
+        "apk",
+        "analysis",
+        "hybrid",
+        "engine",
+        "deepseek",
+        "brain",
+        "py",
+        "test",
+        "suite",
+        "py",
+        "skill",
+        "md"
+      ],
+      "created_at": "2026-06-12T23:08:02.290749",
+      "last_seen": "2026-06-12T23:08:02.290776",
+      "count": 1
+    }
+  ],
+  "updated_at": null
+}
