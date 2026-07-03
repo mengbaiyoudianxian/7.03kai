@@ -1,0 +1,47 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>MBclaw Admin</title>
+<style>:root{--bg:#0d1117;--s:#161b22;--b:#30363d;--t:#e6edf3;--m:#8b949e;--a:#58a6ff;--g:#3fb950;--r:#f85149}
+*{margin:0;padding:0;box-sizing:border-box}body{font:14px system-ui,sans-serif;background:var(--bg);color:var(--t);display:flex;min-height:100vh}
+nav{width:180px;background:var(--s);border-right:1px solid var(--b);padding:16px 0;position:fixed;top:0;left:0;bottom:0}
+nav a{display:block;padding:8px 16px;color:var(--m);cursor:pointer;font-size:13px;border-left:2px solid transparent}
+nav a:hover,nav a.active{color:var(--t);border-left-color:var(--a)}main{margin-left:180px;padding:24px;flex:1}
+.page{display:none}.page.active{display:block}table{width:100%;border-collapse:collapse}th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--b)}
+.badge{padding:2px 8px;border-radius:8px;font-size:10px}.badge-ok{color:var(--g)}.badge-err{color:var(--r)}.mono{font-family:monospace;font-size:11px}
+.c-card{background:var(--s);border:1px solid var(--b);border-radius:8px;padding:16px;margin-bottom:12px}
+</style></head><body>
+<nav><a onclick="navTo('dash',this)" class="active">仪表盘</a><a onclick="navTo('devices',this)">设备</a></nav>
+<main>
+<div class="page active" id="p-dash"><h1>仪表盘</h1><div id="dash-content">加载中...</div></div>
+<div class="page" id="p-devices"><h1>设备</h1><div id="devices-content">加载中...</div></div>
+</main>
+<script>
+function navTo(name,el){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});document.getElementById('p-'+name).classList.add('active');document.querySelectorAll('nav a').forEach(function(a){a.classList.remove('active')});el.classList.add('active');if(name==='dash')loadDash();if(name==='devices')loadDevices()}
+
+function api(path,opt){opt=opt||{};return fetch(path,opt).then(function(r){if(!r.ok)throw r.status;return r.json()})}
+
+function loadDash(){
+  api('/admin/api/overview').then(function(o){
+    api('/admin/client/debug/devices').then(function(dd){
+      var online=(dd||[]).length;
+      document.getElementById('dash-content').innerHTML='<div class="c-card">在线设备: '+online+' 台 | 历史: '+(o.total_devices_ever||0)+' 台</div><table><tr><th>调试码</th><th>QQ</th><th>型号</th><th>版本</th></tr>'+(dd||[]).slice(0,10).map(function(d){return '<tr><td class="mono">'+d.code+'</td><td>'+(d.qq||'-')+'</td><td>'+d.model+'</td><td>'+d.version+'</td></tr>'}).join('')+'</table>';
+    }).catch(function(e){document.getElementById('dash-content').textContent='设备加载失败: '+e})
+  }).catch(function(e){document.getElementById('dash-content').textContent='仪表盘加载失败: '+e})
+}
+
+function loadDevices(){
+  api('/admin/api/users?limit=200').then(function(uu){
+    var rows=(uu.users||[]).map(function(d,i){
+      var keys=d.keys||{};
+      var keyHtml='';
+      if(keys.api_key){
+        keyHtml='<div style="margin-top:6px"><b>Key:</b> <span class="mono">'+(keys.api_key||'-')+'</span> <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent);this.textContent=\\'Copied\\'">Copy</button></div>'+
+          '<div><b>URL:</b> <span class="mono">'+(keys.api_base_url||'-')+'</span> <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent);this.textContent=\\'Copied\\'">Copy</button></div>';
+      }
+      return '<tr><td class="mono">'+d.code+'</td><td>'+d.qq+'</td><td>'+d.model+'</td><td><span class="badge '+(d.online?'badge-ok':'badge-err')+'">'+(d.online?'在线':'离线')+'</span></td></tr>'+
+        '<tr><td colspan="4"><div class="c-card">'+keyHtml+'</div></td></tr>';
+    }).join('');
+    document.getElementById('devices-content').innerHTML='<table><tr><th>调试码</th><th>QQ</th><th>型号</th><th>在线</th></tr>'+rows+'</table>';
+  }).catch(function(e){document.getElementById('devices-content').textContent='加载失败: '+e})
+}
+
+loadDash();
+</script></body></html>
