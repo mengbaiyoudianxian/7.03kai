@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <application
+        android:name=".MBclawNonRootApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="MBclaw Lite"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MBclaw"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 前台保活 -->
+        <service android:name=".agent.AgentService" android:exported="false" android:foregroundServiceType="dataSync" />
+
+        <!-- 语音服务 -->
+        <service android:name=".voice.VoiceService" android:exported="false" android:foregroundServiceType="microphone" />
+
+        <!-- 无障碍点击 -->
+        <service android:name=".service.MBclawAccessibilityService" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- 通知监听 -->
+        <service android:name=".service.NotificationMonitor" android:exported="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
+
+        <!-- Termux 沙箱 -->
+        <service android:name=".sandbox.TermuxSandboxService" android:exported="false" android:foregroundServiceType="dataSync" android:process=":sandbox" />
+
+        <!-- 开机自启 -->
+        <receiver android:name=".service.BootReceiver" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
+
+        <!-- 主动建议广播 -->
+        <receiver android:name=".service.ProactiveReceiver" android:exported="false">
+            <intent-filter><action android:name="com.mbclaw.nonroot.PROACTIVE_SUGGESTION" /></intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,273 @@
+"""管理面板数据 API — 用户详情/下载统计/服务器指标"""
+import os, json, time, subprocess
+from pathlib import Path
+from datetime import datetime, timezone
+from fastapi import APIRouter, HTTPException, Query
+
+router = APIRouter(prefix="/api/admin")
+
+DATA_DIR = Path(os.environ.get("MBCLAW_DATA", "/var/lib/mbclaw"))
+INSTANCES = DATA_DIR / "miclaw_instances.json"
+APPLICATIONS = DATA_DIR / "miclaw_applications.json"
+BLACKLIST = DATA_DIR / "miclaw_blacklist.json"
+USER_FAILS = DATA_DIR / "miclaw_user_fails.json"
+STATS_DIR = DATA_DIR / "stats"
+STATS_DIR.mkdir(parents=True, exist_ok=True)
+
+DOWNLOADS_FILE = STATS_DIR / "downloads.json"
+API_STATS_FILE = STATS_DIR / "api_stats.json"
+
+def _load(p, default):
+    try: return json.loads(p.read_text()) if p.exists() else default
+    except: return default
+
+def _save(p, d):
+    p.write_text(json.dumps(d, ensure_ascii=False, indent=2))
+
+def _read_network_bytes():
+    try:
+        with open("/proc/net/dev", encoding="utf-8") as f:
+            for line in f:
+                if ":" not in line:
+                    continue
+                iface, data = line.split(":", 1)
+                if iface.strip() == "lo":
+                    continue
+                parts = data.split()
+                if len(parts) >= 16:
+                    return int(parts[0]), int(parts[8])
+    except Exception:
+        pass
+    return 0, 0
+
+# ═══════ 下载统计 ═══════
+@router.get("/downloads")
+def get_downloads():
+    return _load(DOWNLOADS_FILE, {})
+
+@router.post("/downloads/track")
+def track_download(file: str = Query("")):
+    dl = _load(DOWNLOADS_FILE, {})
+    if file not in dl: dl[file] = {"total": 0, "today": 0, "last_download": None}
+    dl[file]["total"] += 1
+    dl[file]["today"] += 1
+    dl[file]["last_download"] = datetime.now(timezone.utc).isoformat()
+    _save(DOWNLOADS_FILE, dl)
+    return {"ok": True, "file": file, "total": dl[file]["total"]}
+
+@router.post("/downloads/reset-daily")
+def reset_daily():
+    dl = _load(DOWNLOADS_FILE, {})
+    for k in dl: dl[k]["today"] = 0
+    _save(DOWNLOADS_FILE, dl)
+    return {"ok": True}
+
+# ═══════ 服务器指标 ═══════
+@router.get("/metrics")
+def server_metrics():
+    # 磁盘
+    disk = os.statvfs("/var/lib/mbclaw") if os.path.exists("/var/lib/mbclaw") else os.statvfs("/")
+    disk_total = disk.f_frsize * disk.f_blocks
+    disk_free = disk.f_frsize * disk.f_bavail
+    disk_used = disk_total - disk_free
+
+    # 内存
+    try:
+        with open("/proc/meminfo") as f:
+            mem = {}
+            for line in f:
+                if "MemTotal" in line: mem["total"] = int(line.split()[1]) * 1024
+                if "MemAvailable" in line: mem["avail"] = int(line.split()[1]) * 1024
+    except: mem = {"total": 0, "avail": 0}
+
+    # 网络流量 (粗略)
+    net_rx, net_tx = _read_network_bytes()
+
+    # 运行时间
+    try:
+        with open("/proc/uptime") as f:
+            uptime = int(float(f.read().split()[0]))
+    except: uptime = 0
+
+    # DB大小
+    db_path = DATA_DIR / "mbclaw.db"
+    db_size = db_path.stat().st_size if db_path.exists() else 0
+
+    return {
+        "disk_total": disk_total,
+        "disk_free": disk_free,
+        "disk_used": disk_used,
+        "disk_pct": round(disk_used / disk_total * 100, 1) if disk_total else 0,
+        "mem_total": mem.get("total", 0),
+        "mem_used": mem.get("total", 0) - mem.get("avail", 0),
+        "mem_pct": round((mem.get("total", 0) - mem.get("avail", 0)) / max(mem.get("total", 1), 1) * 100, 1),
+        "net_rx_bytes": net_rx,
+        "net_tx_bytes": net_tx,
+        "uptime_seconds": uptime,
+        "db_size": db_size,
+        "db_size_mb": round(db_size / 1048576, 1),
+    }
+
+# ═══════ 用户详细列表 ═══════
+@router.get("/users")
+def list_users(page: int = 1, limit: int = 20, search: str = ""):
+    inst = _load(INSTANCES, {})
+    bl = _load(BLACKLIST, {"ips": [], "devices": []})
+    try:
+        from app.admin.debug_api import _debug_heartbeats
+        hb_map = {}
+        for k, v in _debug_heartbeats.items():
+            hb_map[v.get("device_id", "")] = v
+    except:
+        hb_map = {}
+    users = []
+    for aid, v in inst.items():
+        uid = v.get("user_id", "anonymous")
+        did = v.get("device_id", "")
+        if search and search not in uid and search not in did: continue
+        hb = hb_map.get(did, {})
+        perms = hb.get("permissions", {}) or v.get("permissions", {}) or {}
+        users.append({"user_id": uid, "device_id": did, "ip": v.get("ip", ""),
+            "model": hb.get("model", "") or v.get("model", ""),
+            "brand": hb.get("brand", "") or v.get("brand", ""),
+            "version": hb.get("version", "") or v.get("version", ""),
+            "sdk": hb.get("sdk", 0),
+            "root": perms.get("root", False),
+            "accessibility": perms.get("accessibility", False),
+            "permissions_granted": perms.get("granted", 0),
+            "permissions_total": perms.get("total", 0),
+            "can_overlay": perms.get("can_overlay", False),
+            "logged_in": v.get("logged_in", False),
+            "last_seen": hb.get("last_seen", "") or v.get("last_seen", ""),
+            "is_blacklisted": (v.get("ip") in bl.get("ips", [])) or (did in bl.get("devices", [])),
+            "key_info": {"has_token": bool(v.get("user_token")),
+                "token_preview": (v.get("user_token", "")[:8] + "...") if v.get("user_token") else ""},
+            "instance_id": aid})
+    users.sort(key=lambda x: x.get("last_seen", ""), reverse=True)
+    total = len(users)
+    start = (page - 1) * limit
+    return {"users": users[start:start+limit], "total": total, "page": page}
+
+@router.get("/stats")
+def dashboard_stats():
+    inst = _load(INSTANCES, {})
+    bl = _load(BLACKLIST, {"ips": [], "devices": []})
+
+    # 去重用户
+    unique_users = len(set(v.get("user_id", "") for v in inst.values()))
+
+    # 活跃实例
+    active = sum(1 for v in inst.values() if v.get("logged_in"))
+
+    # 被拉黑
+    blacklisted = len(bl.get("ips", [])) + len(bl.get("devices", []))
+
+    # 下载总计
+    dl = _load(DOWNLOADS_FILE, {})
+    total_downloads = sum(d.get("total", 0) for d in dl.values())
+    today_downloads = sum(d.get("today", 0) for d in dl.values())
+
+    return {
+        "unique_users": unique_users,
+        "active_instances": active,
+        "total_instances": len(inst),
+        "blacklisted": blacklisted,
+        "total_downloads": total_downloads,
+        "today_downloads": today_downloads,
+        "downloads_breakdown": dl,
+    }
+
+
+# ═══════ 客户端数据上报 (v4.8) ═══════
+from pydantic import BaseModel
+
+class ClientReport(BaseModel):
+    device_id: str = ""
+    user_id: str = ""
+    model: str = ""
+    brand: str = ""
+    version: str = ""
+    root: bool = False
+    accessibility: bool = False
+    permissions_granted: int = 0
+    permissions_total: int = 0
+    api_provider: str = ""
+    api_model: str = ""
+    has_vision_key: bool = False
+    has_voice_key: bool = False
+    session_count: int = 0
+    message_count: int = 0
+    memory_count: int = 0
+    utopia_enabled: bool = False
+    linux_installed: bool = False
+    app_version: str = ""
+
+REPORTS_FILE = STATS_DIR / "client_reports.json"
+
+@router.post("/client/report")
+def receive_report(report: ClientReport):
+    reports = _load(REPORTS_FILE, {})
+    reports[report.device_id] = {
+        **report.model_dump(),
+        "last_report": datetime.now(timezone.utc).isoformat()
+    }
+    _save(REPORTS_FILE, reports)
+    return {"ok": True}
+
+@router.get("/users/detail")
+def user_detail(device_id: str = ""):
+    # 合并所有数据源
+    inst = _load(INSTANCES, {})
+    reports = _load(REPORTS_FILE, {})
+    bl = _load(BLACKLIST, {"ips": [], "devices": []})
+    try:
+        from app.admin.debug_api import _debug_heartbeats
+        hb_map = {v.get("device_id",""): v for v in _debug_heartbeats.values()}
+    except: hb_map = {}
+    
+    result = []
+    # 从所有数据源去重聚合
+    all_dids = set()
+    for v in inst.values(): all_dids.add(v.get("device_id",""))
+    for k in reports: all_dids.add(k)
+    for k in hb_map: all_dids.add(k)
+    
+    for did in all_dids:
+        if not did: continue
+        if device_id and device_id not in did: continue
+        hb = hb_map.get(did, {})
+        rp = reports.get(did, {})
+        perms = hb.get("permissions", {})
+        # 找对应instance
+        inst_data = None
+        for v in inst.values():
+            if v.get("device_id") == did: inst_data = v; break
+        
+        result.append({
+            "device_id": did,
+            "user_id": hb.get("user_id") or rp.get("user_id") or (inst_data.get("user_id") if inst_data else "unknown"),
+            "model": rp.get("model") or hb.get("model", ""),
+            "brand": rp.get("brand") or hb.get("brand", ""),
+            "version": rp.get("version") or hb.get("version", ""),
+            "root": rp.get("root") or perms.get("root", False),
+            "accessibility": rp.get("accessibility") or perms.get("accessibility", False),
+            "permissions_granted": rp.get("permissions_granted") or perms.get("granted", 0),
+            "permissions_total": rp.get("permissions_total") or perms.get("total", 0),
+            "api_provider": rp.get("api_provider", ""),
+            "api_model": rp.get("api_model", ""),
+            "has_vision_key": rp.get("has_vision_key", False),
+            "has_voice_key": rp.get("has_voice_key", False),
+            "session_count": rp.get("session_count", 0),
+            "message_count": rp.get("message_count", 0),
+            "memory_count": rp.get("memory_count", 0),
+            "utopia_enabled": rp.get("utopia_enabled", False),
+            "linux_installed": rp.get("linux_installed", False),
+            "app_version": rp.get("app_version", ""),
+            "last_report": rp.get("last_report", ""),
+            "last_seen": hb.get("last_seen", ""),
+            "has_token": bool(inst_data.get("user_token")) if inst_data else False,
+            "is_blacklisted": did in bl.get("devices", []),
+        })
+    
+    result.sort(key=lambda x: x.get("last_seen", ""), reverse=True)
+    return {"users": result, "total": len(result)}

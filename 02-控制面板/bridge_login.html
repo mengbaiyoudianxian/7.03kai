@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body><p>正在准备登录...</p>
+<script>
+async function init() {
+  try { await fetch('/bridge/miclaw/api/auth/logout', {method:'POST'}); } catch(e) {}
+  window.location.href = 'http://47.83.2.188:8766/';
+}
+init();
+</script>
+</body></html>

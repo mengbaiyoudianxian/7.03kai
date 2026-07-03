@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MBclaw</string>
+    <string name="agent_name">MBclaw</string>
+    <string name="accessibility_service_description">MBclaw 无障碍服务 - 屏幕读取与操作辅助</string>
+    <string name="welcome_title">MBclaw · AI 智能助手</string>
+    <string name="welcome_subtitle">Root权限 · 48工具 · 本地记忆</string>
+    <string name="open">打开</string>
+    <string name="close">关闭</string>
+    <string name="settings">设置</string>
+    <string name="cancel">取消</string>
+    <string name="confirm">确认</string>
+    <string name="send">发送</string>
+    <string name="stop">停止</string>
+    <string name="copy">复制</string>
+    <string name="copied">已复制</string>
+</resources>
