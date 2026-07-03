@@ -1,0 +1,394 @@
+"""T5.1 — REST API router (5 endpoints).
+
+Never imports Summary/Keyword/Experience directly (铁律 #5 + CI guard).
+"""
+
+import fcntl
+import json
+import os
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.db import get_db
+from app.llm import LLMClient, LLMError, get_llm
+from app.memory import MemoryRepo
+from app.models import Message, Session as SessionModel  # orchestrator-only
+from app.pipeline import close_session
+from app.agent import agent_run
+from app.providers import list_providers
+from app.tools import execute as tool_execute, get_tool, list_tools, search_tools
+
+router = APIRouter()
+
+# ── JSONL transcript helper ─────────────────────────────────
+
+TRANSCRIPT_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "transcripts")
+
+
+def _append_transcript(sid: int, msg: dict) -> None:
+    """Thread-safe append of a single message to a session transcript JSONL."""
+    os.makedirs(TRANSCRIPT_DIR, exist_ok=True)
+    path = os.path.join(TRANSCRIPT_DIR, f"session-{sid}.jsonl")
+    line = json.dumps(msg, ensure_ascii=False) + "\n"
+    with open(path, "a") as fp:
+        fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
+        try:
+            fp.write(line)
+        finally:
+            fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
+
+# ── request / response schemas ──────────────────────────────
+
+class CreateSessionRequest(BaseModel):
+    title: str = ""
+    code: str = ""  # v6: device debug code for single-session mode
+
+
+class SessionResponse(BaseModel):
+    session_id: int
+    title: str
+    status: str
+    injected_system_message: dict | None = None
+
+
+class AddMessageRequest(BaseModel):
+    role: str
+    content: str
+    code: str = ""  # v6: device debug code for user dir
+
+
+class MessageResponse(BaseModel):
+    id: int
+    session_id: int
+    role: str
+    content: str
+    created_at: datetime
+
+
+class CloseResponse(BaseModel):
+    session_id: int
+    status: str
+    summary: str
+    keywords: list[dict]
+    experiences: list[dict]
+    stats: dict
+
+
+class SearchHit(BaseModel):
+    session_id: int
+    summary: str
+    keywords: list[str]
+    score: float
+
+
+# ── endpoints ───────────────────────────────────────────────
+
+
+@router.post("/sessions", response_model=SessionResponse)
+def create_session(
+    req: CreateSessionRequest,
+    db: Session = Depends(get_db),
+):
+    """Create or reuse session. v6: single-session mode per device."""
+    session = None
+    # v6: 单会话模式 — 按code复用已有session
+    if req.code:
+        existing = db.query(SessionModel).filter(
+            SessionModel.title == f"global-{req.code}",
+            SessionModel.status == "active"
+        ).first()
+        if existing:
+            session = existing
+            # 关闭其他旧session
+            db.query(SessionModel).filter(
+                SessionModel.id != existing.id,
+                SessionModel.status == "active"
+            ).update({"status": "closed"})
+            db.commit()
+        else:
+            # 关闭所有旧active session
+            db.query(SessionModel).filter(
+                SessionModel.status == "active"
+            ).update({"status": "closed"})
+    if not session:
+        title = f"global-{req.code}" if req.code else (req.title or "新对话")
+        session = SessionModel(title=title, status="active")
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+
+    injected = None
+    repo = MemoryRepo(db)
+    rendered = repo.render_injection_for_new_session(exclude_sid=session.id)
+    if rendered:
+        injected = {"role": "system", "content": rendered}
+        db.add(Message(session_id=session.id, role="system", content=rendered))
+        db.commit()
+
+    return SessionResponse(
+        session_id=session.id,
+        title=session.title,
+        status=session.status,
+        injected_system_message=injected,
+    )
+
+
+@router.post("/sessions/{sid}/messages", response_model=MessageResponse)
+def add_message(
+    sid: int,
+    req: AddMessageRequest,
+    db: Session = Depends(get_db),
+):
+    """Append a message to a session and the JSONL transcript."""
+    session = db.query(SessionModel).filter(SessionModel.id == sid).first()
+    if not session:
+        raise HTTPException(404, "Session not found")
+    if session.status == "closed":
+        raise HTTPException(400, "Session is closed")
+
+    msg = Message(session_id=sid, role=req.role, content=req.content)
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+
+    _append_transcript(sid, {
+        "id": msg.id, "session_id": sid, "role": msg.role,
+        "content": msg.content, "created_at": msg.created_at.isoformat(),
+    }, code=req.code or None)
+
+    return MessageResponse(
+        id=msg.id, session_id=msg.session_id,
+        role=msg.role, content=msg.content, created_at=msg.created_at,
+    )
+
+
+@router.post("/sessions/{sid}/close", response_model=CloseResponse)
+def close(
+    sid: int,
+    db: Session = Depends(get_db),
+    llm: LLMClient = Depends(get_llm),
+):
+    """Close a session: summarise, persist memory, mark closed."""
+    try:
+        result = close_session(db, sid, llm)
+    except LLMError as e:
+        raise HTTPException(503, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return CloseResponse(**result)
+
+
+@router.get("/sessions/{sid}/messages", response_model=list[MessageResponse])
+def list_messages(
+    sid: int,
+    db: Session = Depends(get_db),
+):
+    """Return all messages for a session in chronological order."""
+    msgs = db.query(Message).filter(
+        Message.session_id == sid
+    ).order_by(Message.created_at).all()
+    return [
+        MessageResponse(
+            id=m.id, session_id=m.session_id,
+            role=m.role, content=m.content, created_at=m.created_at,
+        )
+        for m in msgs
+    ]
+
+
+@router.get("/search", response_model=list[SearchHit])
+def search(
+    q: str = Query(min_length=1),
+    limit: int = Query(default=5, ge=1, le=20),
+    db: Session = Depends(get_db),
+):
+    """Full-text + keyword search across past session summaries."""
+    repo = MemoryRepo(db)
+    hits = repo.query(q, top_n=limit)
+    return [SearchHit(
+        session_id=h.session_id, summary=h.summary,
+        keywords=h.keywords, score=h.score,
+    ) for h in hits]
+
+
+# ── agent ──────────────────────────────────────────────────
+
+class AgentRequest(BaseModel):
+    message: str
+    max_turns: int = 5
+
+
+@router.post("/agent/run")
+def agent_chat(req: AgentRequest, db: Session = Depends(get_db), llm: LLMClient = Depends(get_llm)):
+    """Run agent loop: context → LLM → tools → response."""
+    session = db.query(SessionModel).filter(SessionModel.status == "active").order_by(SessionModel.started_at.desc()).first()
+    if not session:
+        session = SessionModel(title="Agent Chat", status="active")
+        db.add(session); db.commit(); db.refresh(session)
+        record_session_created()
+    try:
+        return agent_run(db, session.id, req.message, llm, req.max_turns)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/agent/status")
+def agent_status(db: Session = Depends(get_db)):
+    """Current agent session info."""
+    session = db.query(SessionModel).filter(SessionModel.status == "active").order_by(SessionModel.started_at.desc()).first()
+    if not session:
+        return {"active": False, "session_id": None, "message_count": 0}
+    count = db.query(Message).filter(Message.session_id == session.id).count()
+    return {"active": True, "session_id": session.id, "title": session.title, "message_count": count,
+            "started_at": session.started_at.isoformat() if session.started_at else None}
+
+
+# ── providers ───────────────────────────────────────────────
+
+@router.get("/providers")
+def get_providers(db: Session = Depends(get_db)):
+    """List configured LLM providers with status."""
+    return [p.model_dump() for p in list_providers(db)]
+
+
+# ── tools ───────────────────────────────────────────────────
+
+class ToolExecuteRequest(BaseModel):
+    name: str
+    content: str = ""
+
+
+@router.get("/tools")
+def get_tools(category: str = Query(None), tag: str = Query(None), db: Session = Depends(get_db)):
+    """L1/L2: list tools, optionally filtered by category or tag."""
+    return list_tools(db, category, tag)
+
+
+@router.get("/tools/search")
+def search_tools_endpoint(q: str = Query(min_length=1), db: Session = Depends(get_db)):
+    """Search tools by name/description."""
+    return search_tools(db, q)
+
+
+@router.get("/tools/{tool_id}")
+def get_tool_detail(tool_id: int, db: Session = Depends(get_db)):
+    """L3: full tool detail."""
+    t = get_tool(db, tool_id)
+    if not t: raise HTTPException(404, "Tool not found")
+    return t
+
+
+@router.post("/tools/execute")
+def execute_tool(req: ToolExecuteRequest, db: Session = Depends(get_db)):
+    """Execute a tool and return the result."""
+    from app.tools import bump_usage
+    bump_usage(db, req.name)
+    return {"name": req.name, "result": tool_execute(db, req.name, req.content)}
+
+# ── Mother 上传文件查询 ──────────────────────────
+@router.get("/api/mother/uploads/{code}")
+def mother_uploads(code: str):
+    """列出指定设备的上传文件"""
+    import os as _mu_os
+    upload_dir = "/var/lib/mbclaw/uploads"
+    dev_upload = _mu_os.path.join(upload_dir, code)
+    if not _mu_os.path.isdir(dev_upload):
+        return {"total": 0, "items": []}
+    items = []
+    for fn in sorted(_mu_os.listdir(dev_upload)):
+        fpath = _mu_os.path.join(dev_upload, fn)
+        if _mu_os.path.isfile(fpath):
+            st = _mu_os.stat(fpath)
+            items.append({
+                "name": fn,
+                "url": f"/upload/{code}/{fn}",
+                "size": st.st_size,
+                "mtime": int(st.st_mtime)
+            })
+    items.sort(key=lambda x: x["mtime"], reverse=True)
+    return {"total": len(items), "items": items}
+
+
+# ── Mother 上传文件查询 ──────────────────────────
+@router.get("/api/mother/uploads/{code}")
+def mother_uploads(code: str):
+    """列出指定设备的上传文件"""
+    import os as _mu_os
+    upload_dir = "/var/lib/mbclaw/uploads"
+    dev_upload = _mu_os.path.join(upload_dir, code)
+    if not _mu_os.path.isdir(dev_upload):
+        return {"total": 0, "items": []}
+    items = []
+    for fn in sorted(_mu_os.listdir(dev_upload)):
+        fpath = _mu_os.path.join(dev_upload, fn)
+        if _mu_os.path.isfile(fpath):
+            st = _mu_os.stat(fpath)
+            items.append({
+                "name": fn,
+                "url": f"/upload/{code}/{fn}",
+                "size": st.st_size,
+                "mtime": int(st.st_mtime)
+            })
+    items.sort(key=lambda x: x["mtime"], reverse=True)
+    return {"total": len(items), "items": items}
+
+
+
+# ── Gateway: QQ Bot 消息接入 ──────────────────────
+from pydantic import BaseModel as _GatewayModel
+
+class _GatewayChatReq(_GatewayModel):
+    code: str = ''
+    message: str = ''
+    channel: str = 'qq'
+
+@router.post('/gateway/web/chat')
+def gateway_web_chat(req: _GatewayChatReq):
+    """QQ Bot 消息转发——调用母体LLM获取回复"""
+    from app.llm import get_llm
+    import os
+    try:
+        llm = get_llm()
+        # 临时对话sessions里找或新建
+        provider = os.environ.get('MBCLAW_PROVIDER', 'openai')
+        model = os.environ.get('MBCLAW_MODEL', 'gpt-4o')
+        msgs = [{"role": "user", "content": req.message}]
+        # 直接用 httpx 调 LLM
+        reply = llm.summarize_session(msgs)
+        if hasattr(reply, 'summary'):
+            return {"reply": reply.summary}
+        return {"reply": str(reply)}
+    except Exception as e:
+        return {"reply": f"[母体离线] {str(e)[:100]}"}
+
+# ── 客户端版本 + Linux环境 ──
+@router.get('/client/version')
+def client_version():
+    return {
+        'latest': '5.0.5',
+        'min_supported': '5.0.0',
+        'linux_env': {
+            'url': 'http://121.199.57.195/mbclaw-linux-full-arm64.tar.gz',
+            'size_bytes': 290926356,
+            'size_mb': 278,
+            'version': '1.0-alpine',
+            'checksum': '',
+        },
+        'hotfix': {
+            'version': 31,
+            'url': 'http://121.199.57.195/hotfix/latest.zip',
+            'desc': 'v31: 下载进度+Linux环境'
+        }
+    }
+
+@router.get('/client/linux/status')
+def linux_status():
+    return {
+        'available': True,
+        'url': 'http://121.199.57.195/mbclaw-linux-full-arm64.tar.gz',
+        'size': 290926356,
+        'installed_check': '/data/mbclaw/linux/.mbclaw_ready'
+    }

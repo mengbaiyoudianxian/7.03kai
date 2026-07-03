@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MBclaw Admin · Mother Console</title>
+<style>
+:root,[data-theme="light"]{
+  --bg:#f8fafc;--surface:#fff;--border:#e2e8f0;
+  --text:#0f172a;--muted:#64748b;--subtle:#94a3b8;
+  --primary:#2563eb;--primary-light:#eff6ff;
+  --green:#16a34a;--green-bg:#f0fdf4;
+  --red:#dc2626;--red-bg:#fef2f2;
+  --amber:#d97706;--amber-bg:#fffbeb;
+  --purple:#7c3aed;--purple-bg:#f5f3ff;
+  --sidebar-bg:#0f172a;--sidebar-text:#cbd5e1;--sidebar-active:#2563eb;
+  --radius:10px;--radius-sm:6px;--radius-lg:14px;
+  --shadow:0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md:0 4px 6px rgba(0,0,0,0.05);
+}
+[data-theme="dark"]{
+  --bg:#0f172a;--surface:#1e293b;--border:#334155;
+  --text:#e2e8f0;--muted:#94a3b8;--subtle:#64748b;
+  --primary:#3b82f6;--primary-light:#1e3a5f;
+  --green:#22c55e;--green-bg:#052e16;
+  --red:#ef4444;--red-bg:#450a0a;
+  --amber:#f59e0b;--amber-bg:#451a03;
+  --purple:#a78bfa;--purple-bg:#2e1065;
+  --sidebar-bg:#020617;--sidebar-text:#94a3b8;--sidebar-active:#3b82f6;
+  --shadow:0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md:0 4px 6px rgba(0,0,0,0.4);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;transition:background 0.3s,color 0.3s}
+.sidebar{width:220px;min-height:100vh;background:var(--sidebar-bg);display:flex;flex-direction:column;padding:24px 0;position:fixed;top:0;left:0;bottom:0;z-index:10;transition:all 0.2s}
+.sidebar-logo{padding:0 20px 24px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:8px}
+.sidebar-logo h1{font-size:17px;font-weight:700;color:#fff;letter-spacing:-0.3px}
+.sidebar-logo span{font-size:12px;color:var(--muted);display:block;margin-top:2px}
+.sidebar-nav{flex:1;padding:8px}
+.sidebar-nav a{display:flex;align-items:center;gap:10px;padding:11px 14px;margin:2px 0;color:var(--sidebar-text);font-size:14px;font-weight:500;border-radius:8px;cursor:pointer;text-decoration:none;transition:all 0.15s}
+.sidebar-nav a:hover{background:rgba(255,255,255,0.06);color:#fff}
+.sidebar-nav a.active{background:var(--sidebar-active);color:#fff}
+.sidebar-nav a .icon{font-size:16px;width:20px;text-align:center}
+.sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:8px}
+.sidebar-footer a{color:#f87171;font-size:13px;cursor:pointer}
+.theme-toggle{cursor:pointer;color:var(--sidebar-text);font-size:13px;padding:6px 0;display:flex;align-items:center;gap:6px}
+.main{margin-left:220px;flex:1;padding:32px 36px;max-width:1300px}
+.page{display:none}.page.active{display:block}
+.page-header{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+.page-header h1{font-size:26px;font-weight:700;letter-spacing:-0.5px}
+.page-header p{font-size:14px;color:var(--muted);margin-top:4px}
+.page-header .refresh-btn{cursor:pointer;padding:6px 14px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--muted);transition:all 0.15s}
+.page-header .refresh-btn:hover{background:var(--bg);color:var(--text)}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow);transition:all 0.2s}
+.stat-card:hover{box-shadow:var(--shadow-md)}
+.stat-card .label{font-size:13px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:0.5px}
+.stat-card .value{font-size:34px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;background:var(--bg);border-bottom:2px solid var(--border)}
+td{padding:12px 16px;border-bottom:1px solid var(--border);font-size:14px}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg)}
+.mono{font-family:"SF Mono","Fira Code",monospace;font-size:12px}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;letter-spacing:0.2px}
+.badge::before{content:'';width:7px;height:7px;border-radius:50%;display:inline-block}
+.badge-ok{background:var(--green-bg);color:var(--green)}.badge-ok::before{background:var(--green)}
+.badge-err{background:var(--red-bg);color:var(--red)}.badge-err::before{background:var(--red)}
+.badge-warn{background:var(--amber-bg);color:var(--amber)}.badge-warn::before{background:var(--amber)}
+.badge-purple{background:var(--purple-bg);color:var(--purple)}.badge-purple::before{background:var(--purple)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;font-size:14px;font-weight:500;border-radius:var(--radius-sm);cursor:pointer;border:1px solid transparent;transition:all 0.15s}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{opacity:0.88}
+.btn-sm{padding:6px 14px;font-size:12px;border-radius:var(--radius-sm);background:transparent;color:var(--muted);border:1px solid var(--border);cursor:pointer}
+.btn-sm:hover{background:var(--bg);color:var(--text)}
+.btn-danger{padding:6px 14px;font-size:12px;border-radius:var(--radius-sm);background:transparent;color:var(--red);border:1px solid #fecaca;cursor:pointer}.btn-danger:hover{background:var(--red-bg)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card-header{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+input,textarea{width:100%;padding:10px 14px;font-size:14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);outline:none;font-family:inherit;transition:border-color 0.15s}
+input:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+
+.detail-row{display:none}.detail-row.show{display:table-row}
+.detail-card{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px;background:var(--bg);border-radius:var(--radius-sm);margin:8px 12px}
+.action-bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.feed-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px;box-shadow:var(--shadow)}
+.feed-card .title{font-weight:600;font-size:15px}
+.feed-card .meta{color:var(--muted);font-size:12px;margin-top:2px}
+.feed-card .body{margin-top:8px;font-size:14px;line-height:1.7;color:var(--text)}
+.device-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.device-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow)}
+.device-card .dev-name{font-size:16px;font-weight:700;margin-bottom:4px}
+.device-card .dev-model{font-size:13px;color:var(--muted)}
+.device-card .dev-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.device-card .dev-item{font-size:13px}
+.device-card .dev-item .l{color:var(--muted);font-size:11px;text-transform:uppercase}
+.device-card .dev-item .v{font-weight:600;font-size:15px}
+/* progress bar */
+.progress-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:4px}
+.progress-bar div{height:100%;border-radius:3px;transition:width 0.5s}
+
+@media(max-width:768px){
+  body{flex-direction:column}
+  .sidebar{width:100%;min-height:auto;position:relative;padding:12px 0}
+  .sidebar-logo{display:none}
+  .sidebar-nav{display:flex;flex-wrap:wrap;gap:2px;padding:4px}
+  .sidebar-nav a{font-size:11px;padding:6px 10px}
+  .sidebar-footer{display:none}
+  .main{margin-left:0!important;padding:16px}
+  .page-header h1{font-size:20px}
+  .stat-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .stat-card{padding:14px}
+  .stat-card .value{font-size:24px}
+  table{font-size:11px}th,td{padding:6px 8px}
+  .device-grid{grid-template-columns:1fr}
+  .login-box{width:90vw;padding:28px}
+}
+@media(min-width:769px) and (max-width:1024px){
+  .sidebar{width:180px}
+  .main{margin-left:180px;padding:24px}
+}
+</style>
+</head>
+<body>
+
+
+
+<div id="app-main">
+<aside class="sidebar">
+  <div class="sidebar-logo"><h1>🦞 MBclaw</h1><span>Mother Console v5.5</span></div>
+  <nav class="sidebar-nav">
+    <a onclick="navTo('dash',this)" class="active"><span class="icon">⊞</span>仪表盘</a>
+    <a onclick="navTo('devices',this)"><span class="icon">⊡</span>设备</a>
+    <a onclick="navTo('status',this)"><span class="icon">⊟</span>服务器组</a>
+    <a onclick="navTo('notices',this)"><span class="icon">📢</span>公告</a>
+    <a onclick="navTo('bugs',this)"><span class="icon">🐛</span>反馈</a>
+    <a onclick="navTo('features',this)"><span class="icon">💡</span>共建</a>
+    <a onclick="navTo('tokens',this)"><span class="icon">⊡</span>Token池</a>
+    <a onclick="navTo('miclaw',this)"><span class="icon">⊟</span>MiClaw实例</a>
+    <a onclick="navTo('version',this)"><span class="icon">⊠</span>版本</a>
+  </nav>
+  <div class="sidebar-footer">
+    <a class="theme-toggle" onclick="toggleTheme()">🌙 暗色模式</a>
+    <a class="logout-btn" onclick="doLogout()">退出登录</a>
+  </div>
+</aside>
+
+<main class="main">
+  <!-- 仪表盘 -->
+  <div class="page active" id="p-dash">
+    <div class="page-header"><div><h1>仪表盘</h1><p id="dash-time">加载中...</p></div><button class="refresh-btn" onclick="loadDash()">🔄 刷新</button></div>
+    <div class="stat-grid" id="dash-stats"></div>
+    <div class="stat-grid" style="grid-template-columns:1fr 1fr">
+      <div class="card"><div class="card-header">在线设备<div id="dash-online-count"></div></div><div id="dash-online"></div></div>
+      <div class="card"><div class="card-header">服务器状态</div><div id="dash-server"></div></div>
+    </div>
+  </div>
+
+  <!-- 设备 -->
+  <div class="page" id="p-devices">
+    <div class="page-header"><div><h1>设备管理</h1><p id="devices-count">加载中...</p></div><button class="refresh-btn" onclick="loadDevices()">🔄 刷新</button></div>
+    <div class="table-wrap"><table><thead><tr><th>调试码</th><th>QQ</th><th>型号</th><th>版本</th><th>Root</th><th>Key</th><th>在线</th><th>心跳</th><th></th></tr></thead><tbody id="devices-body"></tbody></table></div>
+  </div>
+
+  <!-- 设备状态(新) -->
+  <div class="page" id="p-status">
+    <div class="page-header"><div><h1>设备状态</h1><p id="status-count">加载中...</p></div><button class="refresh-btn" onclick="loadStatus()">🔄 刷新</button></div>
+    <div class="device-grid" id="status-grid"></div>
+  </div>
+
+
+  <!-- 公告 -->
+  <div class="page" id="p-notices">
+    <div class="page-header"><div><h1>公告管理</h1></div><button class="refresh-btn" onclick="loadNotices()">🔄 刷新</button></div>
+    <div class="card"><input id="notice-title" placeholder="公告标题"><textarea id="notice-body" placeholder="公告内容" rows="3" style="margin:8px 0"></textarea><button class="btn btn-primary" onclick="newNotice()">发布公告</button></div>
+    <div id="notices-list"></div>
+  </div>
+
+  <!-- 反馈 -->
+  <div class="page" id="p-bugs">
+    <div class="page-header"><div><h1>Bug 反馈</h1></div><button class="refresh-btn" onclick="loadBugs()">🔄 刷新</button></div>
+    <div id="bugs-list"></div>
+  </div>
+
+  <!-- 共建 -->
+  <div class="page" id="p-features">
+    <div class="page-header"><div><h1>共建计划</h1></div><button class="refresh-btn" onclick="loadFeatures()">🔄 刷新</button></div>
+    <div id="features-list"></div>
+  </div>
+
+  <!-- Token池 -->
+  <div class="page" id="p-tokens">
+    <div class="page-header"><div><h1>Token池管理 <span id="tokens-progress" style="font-size:14px;color:var(--muted);font-weight:400"></span></h1></div><button class="refresh-btn" onclick="loadTokens()">🔄 刷新</button></div>
+    <div class="table-wrap"><table><thead><tr><th>用户</th><th>QQ</th><th>在线</th><th>Key</th><th>URL</th><th>Model</th></tr></thead><tbody id="tokens-body"></tbody></table></div>
+  </div>
+
+  <!-- MiClaw实例 -->
+  <div class="page" id="p-miclaw">
+    <div class="page-header"><div><h1>MiClaw实例管理</h1></div><button class="refresh-btn" onclick="loadMiclaw()">🔄 刷新</button></div>
+    <div id="miclaw-list"></div>
+  </div>
+
+  <!-- 版本 -->
+  <div class="page" id="p-version">
+    <div class="page-header"><div><h1>版本管理</h1></div><button class="refresh-btn" onclick="loadVersion()">🔄 刷新</button></div>
+    <div class="card"><div id="version-info"></div>
+    <form id="ver-form" style="margin-top:12px;display:grid;gap:8px">
+    <input id="ver-latest" placeholder="版本号"><textarea id="ver-changelog" placeholder="更新日志" rows="2"></textarea><button type="submit" class="btn btn-primary">保存</button></form></div>
+  </div>
+</main>
+</div>
+
+<script>
+// Dark mode toggle
+function toggleTheme(){
+  var h=document.documentElement;
+  var cur=h.getAttribute('data-theme');
+  var next=cur==='dark'?'light':'dark';
+  h.setAttribute('data-theme',next);
+  var btn=document.querySelector('.theme-toggle');
+  btn.textContent=next==='dark'?'☀️ 亮色模式':'🌙 暗色模式';
+  localStorage.setItem('mb-theme',next);
+}
+(function(){
+  var t=localStorage.getItem('mb-theme')||'light';
+  document.documentElement.setAttribute('data-theme',t);
+  var btn=document.querySelector('.theme-toggle');
+  if(btn)btn.textContent=t==='dark'?'☀️ 亮色模式':'🌙 暗色模式';
+})();
+</script>
+
+<script src="/admin2/panel_auth.js"></script>
+<script src="/admin2/panel.js?v=1782736795"></script>
+</body>
+</html>

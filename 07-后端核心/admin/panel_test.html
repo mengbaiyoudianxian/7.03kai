@@ -1,0 +1,11 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Test</title></head><body>
+<h1 id="t">等待...</h1>
+<script>
+document.getElementById('t').textContent = 'JS OK!';
+fetch('/admin/api/overview').then(function(r){return r.json()}).then(function(d){
+  document.getElementById('t').textContent = 'API OK! Online:' + d.online_devices;
+}).catch(function(e){
+  document.getElementById('t').textContent = 'API FAIL: ' + e;
+});
+</script>
+</body></html>

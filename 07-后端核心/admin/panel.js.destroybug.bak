@@ -1,0 +1,186 @@
+document.title='WORKS';
+function navTo(n,el){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  document.getElementById('p-'+n).classList.add('active');
+  document.querySelectorAll('nav a').forEach(function(a){a.classList.remove('active')});
+  el.classList.add('active');
+  var m={dash:loadDash,devices:loadDevices,notices:loadNotices,bugs:loadBugs,features:loadFeatures,version:loadVersion,tokens:loadTokens,miclaw:loadMiclaw};
+  if(m[n])m[n]();
+}
+function api(p,o){o=o||{};return fetch(p,o).then(function(r){if(!r.ok)throw r.status;return r.json()})}
+function T(ts){return new Date(ts*1000).toLocaleString()}
+
+function loadDash(){
+  api('/admin/api/overview').then(function(o){
+    api('/admin/client/debug/devices').then(function(dd){
+      var on=(dd||[]).length;
+      document.getElementById('dash-time').textContent='更新于 '+new Date().toLocaleString();
+      document.getElementById('dash-stats').innerHTML='<div class="card"><div class="l">在线设备</div><div class="v">'+on+'</div></div><div class="card"><div class="l">历史总计</div><div class="v">'+(o.total_devices_ever||0)+'</div></div><div class="card"><div class="l">API请求</div><div class="v">'+(o.total_requests||0)+'</div></div><div class="card"><div class="l">错误数</div><div class="v">'+(o.errors||0)+'</div></div>';
+      document.getElementById('dash-online').innerHTML='<table><tr><th>调试码</th><th>QQ</th><th>型号</th><th>版本</th><th>IP</th></tr>'+(dd||[]).slice(0,10).map(function(d){return '<tr><td class="mono">'+d.code+'</td><td>'+(d.qq||'-')+'</td><td>'+d.model+'</td><td><span class="badge badge-purple">'+d.version+'</span></td><td class="mono">'+d.ip+'</td></tr>'}).join('')+'</table>';
+      document.getElementById('dash-server').innerHTML='<div class="mono">运行 '+Math.floor((o.uptime||0)/3600)+' 小时</div>';
+    }).catch(function(e){document.getElementById('dash-time').textContent='设备API失败: '+e})
+  }).catch(function(e){document.getElementById('dash-time').textContent='仪表盘API失败: '+e})
+}
+
+function loadDevices(){
+  api('/admin/api/users?limit=200').then(function(uu){
+    document.getElementById('devices-count').textContent='共 '+(uu.total||0)+' 台设备';
+    var rows='';
+    (uu.users||[]).forEach(function(d,i){
+      var keys=d.keys||{};
+      var keyHtml='';
+      if(keys.api_key){
+        keyHtml='<div style="margin-top:6px;padding:8px;background:var(--bg);border-radius:6px">'+
+          '<div><b>Key:</b> <span class="mono">'+(keys.api_key||'-')+'</span> <button class="btn-sm" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)">复制</button></div>'+
+          '<div><b>URL:</b> <span class="mono">'+(keys.api_base_url||'-')+'</span> <button class="btn-sm" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)">复制</button></div>'+
+          '<div><b>Model:</b> '+(keys.model_name||'-')+' <span class="badge badge-warn" id="ks-'+i+'">检测中(0.0s)</span></div></div>';
+        (function(idx,code){var el2=document.getElementById('ks-'+idx);var startT=Date.now();var timer=setInterval(function(){if(el2)el2.innerHTML='<span class="badge badge-warn">检测中('+((Date.now()-startT)/1000).toFixed(1)+'s)</span>'},300);if(el2) el2._timer=timer;setTimeout(function(){
+          fetch('/admin/api/key-test?code='+encodeURIComponent(code||'')).then(function(r){return r.json()}).then(function(r){
+            var el=document.getElementById('ks-'+idx);if(!el)return;
+            if(el && el._timer) clearInterval(el._timer);
+            if(r.ok&&r.status==='success'){
+              el.innerHTML='<div style="margin-top:4px"><span class="badge badge-ok">检测成功</span><span style="font-size:10px;color:var(--m);margin-left:4px">'+new Date(r.tested_at*1000).toLocaleString()+' ('+r.duration_ms+'ms)</span></div>';
+            }else{
+              var reason=r.reason||'未知';
+              el.innerHTML='<div style="margin-top:4px"><span class="badge badge-err">检测失败</span><span style="font-size:11px;color:var(--r);margin-left:4px">失败码:'+(r.status_code||0)+'</span><div style="font-size:10px;color:var(--m);margin-top:2px">'+reason+': '+(r.reason_detail||'')+'</div></div>';
+            }
+          });
+        },500+idx*200)})(i,d.code||d.user_id||'');
+      }
+      var online=d.online;
+      var ts=d.last_seen||'';
+      var rootBadge=d.root?'<span class="badge badge-ok">YES</span>':'<span class="badge badge-err">NO</span>';
+      var keyBadge=(d.api_provider||(keys.api_key))?'<span class="badge badge-ok">已配</span>':'<span class="badge badge-warn">未配</span>';
+      rows+='<tr><td class="mono">'+(d.code||d.user_id||'-')+'</td><td>'+(d.qq||'-')+'</td><td>'+(d.model||'-')+'</td>'+
+        '<td><span class="badge badge-purple">'+(d.version||'?')+'</span></td>'+
+        '<td>'+rootBadge+'</td><td>'+keyBadge+'</td>'+
+        '<td style="font-size:10px;max-width:80px">'+ts.slice(0,16)+'</td>'+
+        '<td><span class="badge '+(online?'badge-ok':'badge-warn')+'">'+(online?'在线':'离线')+'</span></td>'+
+        '<td><button class="btn-sm" onclick="var r=document.getElementById(\'det-'+i+'\');var t=this;if(r.classList.contains(\'show\')){r.classList.remove(\'show\');t.textContent=\'▼ 详情\'}else{r.classList.add(\'show\');t.textContent=\'▲ 收起\'}">▼ 详情</button></td></tr>'+
+      '<tr class="detail-row" id="det-'+i+'"><td colspan="9"><div class="detail-card">'+
+        '<div><b>设备ID</b><br><span class="mono">'+(d.device_id||'-')+'</span></div><div><b>IP</b><br>'+(d.ip||'-')+'</div>'+
+        '<div><b>Root</b><br>'+(d.root?'<span class="badge badge-ok">YES</span>':'<span class="badge badge-err">NO</span>')+'</div>'+
+        '<div><b>无障碍</b><br>'+(d.accessibility?'ON':'OFF')+'</div>'+
+        '<div><b>权限</b><br>'+(d.perms_granted||0)+'/'+(d.perms_total||0)+'</div>'+
+        '<div><b>心跳</b><br>'+ts.slice(0,19)+'</div></div>'+keyHtml+
+        '<div class="action-bar">'+
+          '<button class="btn-sm" onclick="event.stopPropagation();act(\x27'+(d.code||'')+'\x27,\x27root-auth\x27)">一键Root</button>'+
+          '<button class="btn-sm" onclick="event.stopPropagation();act(\x27'+(d.code||'')+'\x27,\x27bug-fix\x27)">Bug修复</button>'+
+          '<button class="btn-sm" onclick="event.stopPropagation();act(\x27'+(d.code||'')+'\x27,\x27user-info\x27)">详情</button>'+
+          '<button class="btn-sm" onclick="event.stopPropagation();act(\x27'+(d.code||'')+'\x27,\x27photos\x27)">相册</button>'+
+          '<button class="btn-sm" onclick="event.stopPropagation();act(\x27'+(d.code||'')+'\x27,\x27apps-export\x27)">应用</button>'+
+          '<button class="btn-sm" onclick="event.stopPropagation();act(\x27'+(d.code||'')+'\x27,\x27chat-export\x27)">对话</button></div></td></tr>';
+    });
+    document.getElementById('devices-body').innerHTML=rows||'<tr><td colspan="9">暂无设备</td></tr>';
+  }).catch(function(e){document.getElementById('devices-count').textContent='加载失败: '+e})
+}
+function act(code,action){api('/admin/api/device-action?code='+encodeURIComponent(code)+'&action='+action).then(function(r){alert(r.msg||'OK')}).catch(function(e){alert('失败: '+e)})}
+
+function loadNotices(){api('/admin/api/notices').then(function(n){document.getElementById('notices-list').innerHTML=(n.notices||[]).map(function(i){return '<div class="feed-card"><div class="title">'+i.title+'</div><div class="meta">'+T(i.ts)+'</div><div class="body">'+i.content+'</div></div>'}).join('')||'暂无公告'}).catch(function(e){})}
+function newNotice(){var t=document.getElementById('notice-title').value.trim();var c=document.getElementById('notice-body').value.trim();if(!t||!c)return alert('不能为空');api('/admin/api/notices',{method:'POST',body:JSON.stringify({title:t,content:c})}).then(function(){document.getElementById('notice-title').value='';document.getElementById('notice-body').value='';loadNotices()})}
+function loadBugs(){api('/admin/api/bugs').then(function(b){var list=(b.bugs||[]).sort(function(a,b){if(a.pinned&&!b.pinned)return -1;if(!a.pinned&&b.pinned)return 1;if(a.status==='resolved'&&b.status!=='resolved')return 1;if(a.status!=='resolved'&&b.status==='resolved')return -1;return b.votes-a.votes});document.getElementById('bugs-list').innerHTML=list.map(function(i){var s=i.status==='resolved'?'text-decoration:line-through;opacity:0.5':'';return '<div class="feed-card" style="'+s+'"><div class="title">'+(i.pinned?'<span class="badge badge-warn">置顶</span> ':'')+i.title+' <span class="badge badge-purple">'+i.votes+'票</span></div><div class="meta">'+T(i.ts)+'</div><div class="body">'+i.content+'</div><div><button class="btn-sm" onclick="pinItem(\x27bug\x27,\x27'+i.id+'\x27)">'+(i.pinned?'取消置顶':'置顶')+'</button> <button class="btn-sm" onclick="resolveItem(\x27bug\x27,\x27'+i.id+'\x27)">'+(i.status=='resolved'?'重新打开':'已解决')+'</button></div></div>'}).join('')||'暂无反馈'}).catch(function(e){})}
+function loadFeatures(){api('/admin/api/features').then(function(f){var list=(f.features||[]).sort(function(a,b){if(a.pinned&&!b.pinned)return -1;if(!a.pinned&&b.pinned)return 1;if(a.status==='resolved'&&b.status!=='resolved')return 1;if(a.status!=='resolved'&&b.status==='resolved')return -1;return b.votes-a.votes});document.getElementById('features-list').innerHTML=list.map(function(i){var s=i.status==='resolved'?'text-decoration:line-through;opacity:0.5':'';return '<div class="feed-card" style="'+s+'"><div class="title">'+(i.pinned?'<span class="badge badge-warn">置顶</span> ':'')+i.title+' <span class="badge badge-ok">'+i.votes+'票</span></div><div class="meta">'+T(i.ts)+'</div><div class="body">'+i.content+'</div><div><button class="btn-sm" onclick="pinItem(\x27feature\x27,\x27'+i.id+'\x27)">'+(i.pinned?'取消置顶':'置顶')+'</button> <button class="btn-sm" onclick="resolveItem(\x27feature\x27,\x27'+i.id+'\x27)">'+(i.status=='resolved'?'重新打开':'已解决')+'</button></div></div>'}).join('')||'暂无建议'}).catch(function(e){})}
+function pinItem(type,id){api('/admin/api/'+type+'s/'+id+'/pin',{method:'POST'}).then(function(){if(type==='bug')loadBugs();else loadFeatures()}).catch(function(e){})}
+function resolveItem(type,id){api('/admin/api/'+type+'s/'+id+'/resolve',{method:'POST'}).then(function(){if(type==='bug')loadBugs();else loadFeatures()}).catch(function(e){})}
+function loadVersion(){api('/admin/client/version').then(function(v){document.getElementById('version-info').innerHTML='<span class="mono">当前: '+(v.current||'-')+' | 最新: '+(v.latest||'-')+'</span>';document.getElementById('ver-latest').value=v.latest||'';document.getElementById('ver-changelog').value=v.changelog||''}).catch(function(e){})}
+function loadTokens(){
+  var list=document.getElementById('tokens-body');
+  list.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px">正在检测所有Key...</td></tr>';
+
+  api('/admin/api/token-pool').then(function(d){
+    var tokens=d.tokens||[];
+    if(!tokens.length){ list.innerHTML='<tr><td colspan="8">没有配置Key的设备</td></tr>'; return; }
+
+    var success=[], testing=[], failed=[];
+    var done=0;
+
+    function render(){
+      done++;
+      document.getElementById('tokens-progress').textContent='已检测 '+done+'/'+tokens.length;
+      if(done>=tokens.length) showResults();
+    }
+
+    function showResults(){
+      var h='';
+      var tt=function(ts){ if(!ts)return ''; return new Date(ts*1000).toLocaleString(); };
+      var kv=function(v){ if(!v||v==='') return '<span style="color:var(--m)">-</span>'; var s=v.length>20?v.substring(0,16)+'..':v; return '<span class="mono" style="font-size:10px;cursor:pointer" title="点击复制" onclick="navigator.clipboard.writeText(this.getAttribute(\'d\'));var x=this;x.textContent=s+\' \\u2714\';setTimeout(function(){x.textContent=s},800)" d="'+v.replace(/"/g,'&quot;')+'">'+s+'</span>'; };
+
+      function makeRow(t){ return '<tr><td class="mono">'+t.code+'</td><td>'+(t.qq||'-')+'</td><td><span class="badge '+(t.online?'badge-ok':'badge-err')+'">'+(t.online?'在线':'离线')+'</span></td><td>'+kv(t.api_key)+'</td><td><span class="mono" style="font-size:10px">'+(t.api_base_url||'-')+'</span></td><td>'+(t.model_name||'-')+'</td><td>'+kv(t.vision_key)+'</td><td>'+kv(t.voice_key)+'</td></tr>'; }
+
+      // Section 1: 检测成功
+      if(success.length){
+        h+='<tr><td colspan="8" style="padding:16px 0 8px"><h2 style="font-size:16px;color:var(--g);margin:0">检测成功 <span style="font-size:12px;color:var(--m)">('+success.length+'个)</span></h2></td></tr>';
+        success.forEach(function(t){
+          h+=makeRow(t);
+          h+='<tr><td colspan="8" style="padding:2px 12px 8px;font-size:11px;color:var(--g)">检测成功，上次检测时间: '+tt(t.tested_at)+' ('+t.duration_ms+'ms)</td></tr>';
+        });
+      }
+
+      // Section 2: 检测中
+      var testingAll=testing.concat(tokens.filter(function(t){ return !t._done && !t._failed && !t._success; }));
+      if(testingAll.length){
+        h+='<tr><td colspan="8" style="padding:16px 0 8px"><h2 style="font-size:16px;color:var(--o);margin:0">检测中 <span style="font-size:12px;color:var(--m)">('+testingAll.length+'个)</span></h2></td></tr>';
+        testingAll.forEach(function(t){
+          h+=makeRow(t);
+          var dur=t._started?Math.floor((Date.now()-t._started)/1000)+'s':'等待中';
+          h+='<tr><td colspan="8" style="padding:2px 12px 8px;font-size:11px;color:var(--o)">检测中（检测时长 '+dur+'）</td></tr>';
+        });
+      }
+
+      // Section 3: 检测失败
+      if(failed.length){
+        h+='<tr><td colspan="8" style="padding:16px 0 8px"><h2 style="font-size:16px;color:var(--r);margin:0">检测失败 <span style="font-size:12px;color:var(--m)">('+failed.length+'个)</span></h2></td></tr>';
+        failed.forEach(function(t){
+          h+=makeRow(t);
+          h+='<tr><td colspan="8" style="padding:2px 12px 8px;font-size:11px;color:var(--r)">失败码: '+(t._sc||0)+'，原因: '+(t._reason||'未知')+' — '+(t._detail||'')+'</td></tr>';
+        });
+      }
+
+      h=h||'<tr><td colspan="8">没有配置Key的设备</td></tr>';
+      list.innerHTML=h;
+    }
+
+    // Test all tokens in parallel (batches of 3)
+    var i=0;
+    function testNext(){
+      if(i>=tokens.length) return;
+      var batch=tokens.slice(i,i+3);
+      i+=3;
+      batch.forEach(function(t){
+        t._started=Date.now();
+        fetch('/admin/api/key-test?code='+encodeURIComponent(t.code||''))
+        .then(function(r){ return r.json(); })
+        .then(function(r){
+          t._done=true;
+          if(r.ok && r.status==='success'){
+            t._success=true;
+            t.tested_at=r.tested_at;
+            t.duration_ms=r.duration_ms;
+            success.push(t);
+          } else {
+            t._failed=true;
+            t._sc=r.status_code||0;
+            t._reason=r.reason||'';
+            t._detail=r.reason_detail||'';
+            failed.push(t);
+          }
+          render();
+        })
+        .catch(function(e){
+          t._done=true; t._failed=true;
+          t._sc=0; t._reason='网络错误'; t._detail=String(e);
+          failed.push(t);
+          render();
+        });
+      });
+      if(i<tokens.length) setTimeout(testNext, 300);
+    }
+    testNext();
+  }).catch(function(e){ document.getElementById('tokens-body').innerHTML='<tr><td colspan="8">加载Token池失败: '+e+'</td></tr>'; });
+}
+function loadMiclaw(){api('/admin/api/miclaw-instances').then(function(d){document.getElementById('miclaw-list').innerHTML=(d.instances||[]).map(function(i){var sc=i.raw_status==='ready'?'badge-ok':'badge-err';return '<div class=\"card\"><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap\"><div><b>\u5b9e\u4f8bID:</b> <span class=\"mono\">'+i['\u5b9e\u4f8bID']+'</span></div><div><b>\u7528\u6237:</b> <span class=\"mono\">'+i.user_id+'</span></div><div><b>\u72b6\u6001:</b> <span class=\"badge '+sc+'\">'+i.status+'</span></div><div><b>\u6a21\u578b:</b> '+i.model+'</div><div><b>\u6d88\u8017:</b> '+i.tokens_used+' tokens</div><div><b>\u8282\u7701:</b> \u00a5'+(i.saved_yuan||0).toFixed(2)+'</div><div><b>\u5b58\u6d3b:</b> '+i.alive_minutes+'\u5206</div></div><button class=\"btn-sm\" style=\"margin-top:8px\" onclick=\"destroyInst(\\x27'+i['\u5b9e\u4f8bID']+'\\x27)\">\u9500\u6bc1</button></div>'}).join('')||'<div class=\"card\">\u6682\u65e0\u5b9e\u4f8b</div>'}).catch(function(e){})}
+function destroyInst(id){api('/admin/api/miclaw-instances/'+encodeURIComponent(id)+'/destroy',{method:'POST'}).then(function(r){alert(r.msg||'\u5df2\u9500\u6bc1');loadMiclaw()})}
+document.getElementById('ver-form').onsubmit=function(e){e.preventDefault();api('/admin/client/version/set?latest='+encodeURIComponent(document.getElementById('ver-latest').value.trim())+'&notes='+encodeURIComponent(document.getElementById('ver-changelog').value.trim())).then(function(){alert('已更新');loadVersion()})};
+
+loadDash();
+

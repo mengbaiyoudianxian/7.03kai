@@ -1,0 +1,75 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>MBclaw Admin</title>
+<style>
+:root{--bg:#0d1117;--s:#161b22;--b:#30363d;--t:#e6edf3;--m:#8b949e;--a:#58a6ff;--g:#3fb950;--r:#f85149;--o:#d2991d;--p:#a371f7}
+*{margin:0;padding:0;box-sizing:border-box}body{font:14px system-ui,sans-serif;background:var(--bg);color:var(--t);min-height:100vh}
+/* 登录遮罩 */
+#auth-overlay{display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg)}
+#auth-overlay .login-box{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:32px;width:360px;text-align:center}
+#auth-overlay h1{font-size:22px;margin-bottom:4px}#auth-overlay .sub{color:var(--m);font-size:13px;margin-bottom:20px}
+#auth-overlay input{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--b);color:var(--t);border-radius:6px;font-size:15px;margin-bottom:12px;outline:none}
+#auth-overlay input:focus{border-color:var(--a)}
+#auth-overlay button{width:100%;padding:10px;background:var(--a);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:15px}
+#auth-overlay button:disabled{opacity:.5;cursor:default}
+#login-error{display:none;color:var(--r);font-size:13px;margin-top:8px}
+/* 主应用 */
+#app-main{display:none}
+nav{width:180px;background:var(--s);border-right:1px solid var(--b);padding:16px 0;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;display:flex;flex-direction:column}
+nav h2{padding:0 16px 16px;font-size:14px}nav a{display:block;padding:10px 16px;color:var(--m);cursor:pointer;font-size:13px;border-left:2px solid transparent}
+nav a:hover,nav a.active{color:var(--t);background:rgba(88,166,255,.06);border-left-color:var(--a)}
+nav .nav-spacer{flex:1}
+nav .logout-btn{padding:10px 16px;color:var(--r);cursor:pointer;font-size:13px;border-left:2px solid transparent;border-top:1px solid var(--b);margin-top:8px}
+nav .logout-btn:hover{color:#ff6b6b;background:rgba(248,81,73,.08);border-left-color:var(--r)}
+main{margin-left:180px;flex:1;padding:28px 32px;max-width:1200px}
+h1{font-size:22px;margin-bottom:12px}.page{display:none}.page.active{display:block}
+.card{background:var(--s);border:1px solid var(--b);border-radius:8px;padding:16px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.card .l{font-size:11px;color:var(--m)}.card .v{font-size:26px;font-weight:700;font-family:monospace}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 12px;color:var(--m);border-bottom:2px solid var(--b);font-size:11px}
+td{padding:8px 12px;border-bottom:1px solid var(--b)}
+.badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600}.badge-ok{color:var(--g)}.badge-err{color:var(--r)}.badge-warn{color:var(--o)}.badge-purple{color:var(--p)}.mono{font-family:monospace;font-size:11px}
+input,textarea{padding:8px;background:var(--bg);border:1px solid var(--b);color:var(--t);border-radius:4px;width:100%;font:inherit;font-size:13px}
+button{padding:8px 16px;background:var(--a);color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px}
+.btn-sm{padding:4px 10px;font-size:11px;background:transparent;color:var(--a);border:1px solid var(--b);border-radius:6px;cursor:pointer}
+.feed-card{background:var(--s);border:1px solid var(--b);border-radius:8px;padding:14px;margin-bottom:10px}.feed-card .title{font-weight:600;font-size:14px}.feed-card .meta{color:var(--m);font-size:11px}.feed-card .body{margin-top:8px;font-size:12px;line-height:1.6}
+.detail-row{display:none}.detail-row.show{display:table-row}
+.detail-card{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;font-size:12px;padding:12px;background:var(--bg);border-radius:6px}
+.action-bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--b)}
+</style></head><body>
+
+<!-- 登录遮罩 -->
+<div id="auth-overlay">
+  <div class="login-box">
+    <h1>MBclaw Admin</h1>
+    <p class="sub">管理面板 · 请输入密码</p>
+    <input type="password" id="login-pwd" placeholder="管理员密码" autofocus>
+    <button id="login-btn" onclick="doLogin()">登录</button>
+    <p id="login-error"></p>
+  </div>
+</div>
+
+<!-- 主应用 -->
+<div id="app-main">
+<nav><h2>MBclaw Admin</h2>
+<a onclick="navTo('dash',this)" class="active">仪表盘</a><a onclick="navTo('devices',this)">设备</a>
+<a onclick="navTo('notices',this)">公告</a><a onclick="navTo('bugs',this)">反馈</a>
+<a onclick="navTo('features',this)">共建</a><a onclick="navTo('tokens',this)">Token池</a>
+<a onclick="navTo('miclaw',this)">MiClaw实例</a><a onclick="navTo('version',this)">版本</a>
+<div class="nav-spacer"></div>
+<a class="logout-btn" onclick="doLogout()">退出登录</a></nav>
+<main>
+<div class="page active" id="p-dash"><h1>仪表盘</h1><p id="dash-time">加载中...</p><div class="grid" id="dash-stats"></div><div class="row"><div class="card"><h3>在线设备</h3><div id="dash-online"></div></div><div class="card"><h3>服务器状态</h3><div id="dash-server"></div></div></div></div>
+<div class="page" id="p-devices"><h1>设备</h1><p id="devices-count">-</p><table><thead><tr><th>调试码</th><th>QQ</th><th>型号</th><th>版本</th><th>在线</th><th></th></tr></thead><tbody id="devices-body"></tbody></table></div>
+<div class="page" id="p-notices"><h1>公告管理</h1><div class="card"><input id="notice-title" placeholder="标题" style="margin-bottom:8px"><textarea id="notice-body" placeholder="内容" rows="2" style="margin-bottom:8px"></textarea><button onclick="newNotice()">发布</button></div><div id="notices-list"></div></div>
+<div class="page" id="p-bugs"><h1>Bug 反馈</h1><div id="bugs-list"></div></div>
+<div class="page" id="p-features"><h1>共建计划</h1><div id="features-list"></div></div>
+<div class="page" id="p-tokens"><h1>Token池管理 <span id="tokens-progress" style="font-size:13px;color:var(--m);font-weight:normal"></span></h1><table><thead><tr><th>用户</th><th>QQ</th><th>在线</th><th>Key</th><th>URL</th><th>Model</th></tr></thead><tbody id="tokens-body"></tbody></table></div>
+<div class="page" id="p-miclaw"><h1>MiClaw实例管理</h1><div id="miclaw-list"></div></div>
+<div class="page" id="p-version"><h1>版本管理</h1><div class="card"><div id="version-info"></div><form id="ver-form" style="margin-top:12px;display:grid;gap:8px"><input id="ver-latest" placeholder="版本号"><textarea id="ver-changelog" placeholder="更新日志" rows="2"></textarea><button type="submit">保存</button></form></div></div>
+</main>
+</div>
+
+<script src="/admin2/panel_auth.js"></script>
+<script src="/admin2/panel.js?v=1782636727"></script>
+</body></html>
