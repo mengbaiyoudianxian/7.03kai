@@ -1,0 +1,32 @@
+version: "3.9"
+services:
+  token-pool:
+    build: ./05-Token池/token_pool
+    container_name: token-pool
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    volumes:
+      - token_pool_data:/var/lib/token_pool
+    env_file:
+      - .env
+    environment:
+      - TP_DATA=/var/lib/token_pool
+
+  mother:
+    build: ./mother-server
+    container_name: mother
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - mother_data:/var/lib/mbclaw
+    env_file:
+      - .env
+    environment:
+      - TOKEN_POOL_URL=http://token-pool:8100
+      - MBCLAW_DATA=/var/lib/mbclaw
+
+volumes:
+  token_pool_data:
+  mother_data:
