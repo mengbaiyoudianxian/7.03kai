@@ -122,19 +122,6 @@ class Registry:
             except sqlite3.OperationalError as e:
                 if "duplicate column" not in str(e).lower():
                     raise
-        # P2-11: miclaw_accounts 新增归属+配额列
-        for col, col_def in [
-            ("owner_user_code", "TEXT DEFAULT ''"),
-            ("borrower_whitelist", "TEXT DEFAULT ''"),
-            ("owner_ratio", "REAL DEFAULT 0.7"),
-            ("shared_ratio", "REAL DEFAULT 0.2"),
-            ("reserved_ratio", "REAL DEFAULT 0.1"),
-        ]:
-            try:
-                self._conn.execute(f"ALTER TABLE miclaw_accounts ADD COLUMN {col} {col_def}")
-            except sqlite3.OperationalError as e:
-                if "duplicate column" not in str(e).lower():
-                    raise
         self._conn.executescript(f"""
         -- 用户共享Key（从心跳收集）
         CREATE TABLE IF NOT EXISTS user_shared_keys (
@@ -206,6 +193,19 @@ class Registry:
         CREATE INDEX IF NOT EXISTS idx_call_log_user  ON call_log(user_id);
         """)
         self._conn.commit()
+        # P2-11: miclaw_accounts 新增归属+配额列（在 CREATE TABLE IF NOT EXISTS 之后）
+        for col, col_def in [
+            ("owner_user_code", "TEXT DEFAULT ''"),
+            ("borrower_whitelist", "TEXT DEFAULT ''"),
+            ("owner_ratio", "REAL DEFAULT 0.7"),
+            ("shared_ratio", "REAL DEFAULT 0.2"),
+            ("reserved_ratio", "REAL DEFAULT 0.1"),
+        ]:
+            try:
+                self._conn.execute(f"ALTER TABLE miclaw_accounts ADD COLUMN {col} {col_def}")
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
 
     def _validate_schema(self):
         """验证 dataclass 字段与 DB 列一致，防止 User(**dict(row)) 等运行时错误"""
