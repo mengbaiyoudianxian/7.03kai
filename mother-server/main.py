@@ -71,21 +71,25 @@ def health():
     return {"ok": True, "version": "2.0.0", "owner": cfg.owner_name}
 
 
-# G3: 微信 Webhook 回调
-@app.post("/gateway/wechat")
-async def wechat_webhook(request: Request):
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    from gateway import get_adapter
-    from gateway.agent import handle_message
-    adapter = get_adapter("wechat")
-    if adapter:
-        msg = await adapter.handle_callback(body)
-        reply = await handle_message(msg)
-        return {"reply": reply}
-    return {"error": "wechat adapter not running"}
+@app.post("/gateway/wechat/login")
+async def wechat_login():
+    """W4: 触发微信扫码登录（后台执行）"""
+    import asyncio
+    from gateway.adapters.wechat_auth import login_with_qr
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, login_with_qr)
+    if result:
+        return {"ok": True, "account_id": result["account_id"]}
+    return {"ok": False, "error": "登录失败或超时"}
+
+
+@app.get("/gateway/wechat/accounts")
+def wechat_accounts():
+    """列出已登录的微信账号"""
+    from gateway.adapters.wechat_auth import load_accounts
+    return {"accounts": [{"account_id": a.get("account_id", ""),
+                          "user_id": a.get("userId", ""),
+                          "base_url": a.get("baseUrl", "")} for a in load_accounts()]}
 
 
 if __name__ == "__main__":
