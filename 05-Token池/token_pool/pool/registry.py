@@ -64,6 +64,7 @@ class Registry:
         self._conn = sqlite3.connect(cfg.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_db()
+        self._validate_schema()
         self._seed()
 
     def _init_db(self):
@@ -114,11 +115,13 @@ class Registry:
         );
         -- 兼容旧表：如果password_hash列不存在则添加
         """)
-        # 兼容旧数据库
-        try: self._conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT DEFAULT ''")
-        except: pass
-        try: self._conn.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0.0")
-        except: pass
+        # 兼容旧数据库（仅捕获"列已存在"错误）
+        for col, col_def in [("password_hash", "TEXT DEFAULT ''"), ("balance", "REAL DEFAULT 0.0")]:
+            try:
+                self._conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_def}")
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
         self._conn.executescript(f"""
         -- 用户共享Key（从心跳收集）
         CREATE TABLE IF NOT EXISTS user_shared_keys (
@@ -185,6 +188,43 @@ class Registry:
         CREATE INDEX IF NOT EXISTS idx_call_log_user  ON call_log(user_id);
         """)
         self._conn.commit()
+
+    def _validate_schema(self):
+        """验证 dataclass 字段与 DB 列一致，防止 User(**dict(row)) 等运行时错误"""
+        from dataclasses import fields as dc_fields
+        # DB-only 列：解密后才注入 dataclass，DB 原始列不暴露
+        db_only = {"id", "encrypted_key", "key_iv", "key_tag", "created_at",
+                   "encrypted_password", "password_iv", "password_tag"}
+        checks = [
+            (User, "users"),
+            (ProviderKey, "keys"),
+        ]
+        for dc, table in checks:
+            table_info = self._conn.execute(f"PRAGMA table_info({table})").fetchall()
+            db_cols = {row["name"] for row in table_info}
+            field_names = {f.name for f in dc_fields(dc)}
+            missing_in_dc = db_cols - field_names - db_only
+            extra_in_dc = field_names - db_cols
+            if missing_in_dc:
+                raise TypeError(
+                    f"Schema mismatch: {dc.__name__} 缺少字段 {missing_in_dc}，"
+                    f"但 {table} 表有此列。请在 dataclass 中添加这些字段。"
+                )
+            if extra_in_dc:
+                import logging
+                logging.warning(
+                    "Schema drift: %s 有字段 %s 但 %s 表无对应列（可能是新增字段，ALTER TABLE 会自动处理）",
+                    dc.__name__, extra_in_dc, table
+                )
+        # SQLite 版本检查
+        version = self._conn.execute("SELECT sqlite_version()").fetchone()[0]
+        major, minor = map(int, version.split(".")[:2])
+        if (major, minor) < (3, 38):
+            import logging
+            logging.warning(
+                "SQLite %s < 3.38: unixepoch() 不可用，请使用 time.time() 代替",
+                version
+            )
 
     def _seed(self):
         for pk in BUILTIN:

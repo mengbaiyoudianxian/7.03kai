@@ -37,9 +37,6 @@ def _user_to_info(u: User) -> dict:
 def register(req: RegisterReq):
     """注册新用户，返回 API Token（仅显示一次）"""
     reg = get_registry()
-    # 检查用户名是否已存在
-    existing = reg.get_user_by_token("")  # 不会匹配，仅触发检查
-    # 直接尝试创建，让 UNIQUE 约束处理重复
     try:
         user = reg.create_user_with_password(req.username, req.password)
         stats = reg.get_user_stats(user.id)
