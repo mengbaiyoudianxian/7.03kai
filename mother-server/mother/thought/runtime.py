@@ -87,8 +87,12 @@ class ThoughtRuntime:
                 result = tp.chat_with_tools(
                     self.ctx.to_messages(), tools=TOOLS,
                     task="chat", max_tokens=2000)
+                # P5-4: 成功后记录经验
+                _record_call_result("success", result.get("alias",""), result.get("model",""),
+                                   result.get("tokens",0), task="chat")
             except Exception as e:
                 error_count += 1
+                _record_call_result("failure", "", "", 0, task="chat", error=str(e)[:200])
                 if error_count >= 3:
                     final_reply = f"LLM调用失败: {e}"
                     episode.add_step("error", str(e))
@@ -164,3 +168,17 @@ class ThoughtRuntime:
 
     def reset(self):
         self.ctx = ContextRuntime()
+
+
+def _record_call_result(status: str, alias: str, model: str, tokens: int, task: str, error: str = ""):
+    """P5-4: 记录每次 LLM 调用结果到经验记忆"""
+    try:
+        from mother.memory import experience
+        if status == "success":
+            experience.add("success", f"模型 {alias or model} 在 {task} 任务上可用",
+                          f"{model} 响应正常，{tokens} tokens", [alias, model, task])
+        else:
+            experience.add("failure", f"模型调用失败({task})",
+                          f"错误: {error[:200]}", [task, error[:50]])
+    except Exception:
+        pass
