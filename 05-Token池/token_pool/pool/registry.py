@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3, secrets, time, threading
 from dataclasses import dataclass
 from config import cfg
+from pool.encryption import encrypt, decrypt
 
 
 @dataclass
@@ -507,11 +508,28 @@ class Registry:
             return ""
 
     def update_miclaw_session(self, account_id: int, cookie: str = "", session_token: str = "", login_status: str = "logged_in"):
+        """P2-5: 加密存储 Cookie/Session"""
+        def _enc(v):
+            if not v: return ""
+            c, iv, tag = encrypt(v)
+            return f"enc:{c}:{iv}:{tag}"
         with self._lock:
             self._conn.execute(
                 "UPDATE miclaw_accounts SET cookie=?,session_token=?,login_status=?,verified_at=? WHERE id=?",
-                (cookie, session_token, login_status, time.time(), account_id))
+                (_enc(cookie), _enc(session_token), login_status, time.time(), account_id))
             self._conn.commit()
+
+    def get_miclaw_cookie(self, account_id: int) -> str:
+        """P2-5: 解密并返回 Cookie"""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT cookie FROM miclaw_accounts WHERE id=?", (account_id,)).fetchone()
+            if row and row["cookie"] and row["cookie"].startswith("enc:"):
+                parts = row["cookie"][4:].split(":", 2)
+                if len(parts) == 3:
+                    try: return decrypt(parts[0], parts[1], parts[2])
+                    except: return ""
+            return row["cookie"] if row else ""
 
     def update_miclaw_usage(self, account_id: int, tokens: int):
         with self._lock:
