@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio, time, logging
 import httpx
 from pool.registry import ProviderKey, get_registry
-from pool.circuit import get_cb
+from pool.ratelimit import get_limiter
 from pool.metrics import get_hub
 from config import cfg
 
@@ -39,7 +39,7 @@ async def probe_key(pk: ProviderKey, timeout: int = 10) -> tuple[bool, float, st
 
 async def check_all():
     """检测所有启用Key"""
-    reg = get_registry(); cb = get_cb(); hub = get_hub()
+    reg = get_registry(); rl = get_limiter(); hub = get_hub()
     keys = reg.all(enabled_only=True)
     log.info("健康检测开始，共 %d 个Key", len(keys))
     for pk in keys:
@@ -47,8 +47,10 @@ async def check_all():
         status = "working" if ok else "failed"
         reg.update_stat(pk.alias, status, latency, 0, 0, ok, err)
         hub.record(pk.alias, latency, 0, 0, ok)
-        if ok: cb.on_success(pk.alias)
-        else: cb.on_failure(pk.alias)
+        if ok:
+            rl.clear_cooldown(pk.alias, pk.provider, pk.model)
+        else:
+            rl.set_cooldown(pk.alias, pk.provider, pk.model, status_code=429)
         log.info("  [%s] %s %s %.0fms %s", pk.alias, "✅" if ok else "❌", status, latency, err[:60] if err else "")
 
 async def run_forever():

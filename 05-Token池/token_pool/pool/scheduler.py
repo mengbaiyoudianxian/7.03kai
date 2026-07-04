@@ -9,7 +9,7 @@ import time, logging
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from pool.registry import ProviderKey, get_registry
-from pool.circuit import get_cb
+from pool.ratelimit import get_limiter
 from pool.metrics import get_hub
 from pool.scoring import (
     capability_score, reliability_score, speed_score, score_batch,
@@ -91,24 +91,28 @@ class QuotaGuard:
 
 
 class RateLimitGuard:
-    """速率限制检查（当前委托circuit，P0-3替换为ratelimit.py）"""
+    """速率限制检查（调用ratelimit.py）"""
 
     @staticmethod
     def check(pk: ProviderKey) -> GuardResult:
-        cb = get_cb()
-        if cb.is_open(pk.alias):
-            return GuardResult(False, f"速率限制中 (熔断开放)")
+        rl = get_limiter()
+        if rl.is_on_cooldown(pk.alias, pk.provider, pk.model):
+            expiry = rl.get_cooldown_expiry(pk.alias, pk.provider, pk.model)
+            remaining = max(0, (expiry or 0) - time.time() * 1000) / 1000
+            return GuardResult(False, f"速率限制冷却中 ({remaining:.0f}s剩余)")
         return GuardResult(True)
 
 
 class CircuitGuard:
-    """熔断检查（连续失败N次→暂时跳过）"""
+    """熔断检查（委托ratelimit的冷却状态）"""
 
     @staticmethod
     def check(pk: ProviderKey) -> GuardResult:
-        cb = get_cb()
-        if cb.is_open(pk.alias):
-            return GuardResult(False, f"熔断开放: 连续{cb.status_all().get(pk.alias,{}).get('failures',0)}次失败")
+        rl = get_limiter()
+        if rl.is_on_cooldown(pk.alias, pk.provider, pk.model):
+            expiry = rl.get_cooldown_expiry(pk.alias, pk.provider, pk.model)
+            remaining = max(0, (expiry or 0) - time.time() * 1000) / 1000
+            return GuardResult(False, f"熔断开放: {remaining:.0f}s后恢复")
         return GuardResult(True)
 
 

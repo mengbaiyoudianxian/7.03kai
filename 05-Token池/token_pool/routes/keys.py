@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from pool.registry import ProviderKey, get_registry
-from pool.circuit import get_cb
+from pool.ratelimit import get_limiter
 from pool.health import probe_key
 from config import cfg
 
@@ -25,7 +25,7 @@ class KeyIn(BaseModel):
 @router.get("")
 def list_keys(x_admin_key: str = Header(default="")):
     _auth(x_admin_key)
-    reg = get_registry(); cb = get_cb()
+    reg = get_registry(); rl = get_limiter()
     keys = reg.all()
     result = []
     for pk in keys:
@@ -38,7 +38,7 @@ def list_keys(x_admin_key: str = Header(default="")):
              "total_tokens": pk.total_tokens, "total_cost": round(pk.total_cost, 6),
              "avg_latency_ms": round(pk.avg_latency_ms, 1),
              "last_checked": pk.last_checked, "last_error": pk.last_error,
-             "circuit_open": cb.is_open(pk.alias)}
+             "circuit_open": rl.is_on_cooldown(pk.alias, pk.provider, pk.model)}
         result.append(d)
     return result
 
@@ -82,15 +82,19 @@ async def probe(alias: str, x_admin_key: str = Header(default="")):
     if not pk: raise HTTPException(404)
     ok, latency, err = await probe_key(pk)
     get_registry().update_stat(alias, "working" if ok else "failed", latency, 0, 0, ok, err)
-    cb = get_cb()
-    if ok: cb.on_success(alias)
-    else: cb.on_failure(alias)
+    rl = get_limiter()
+    if ok:
+        rl.clear_cooldown(pk.alias, pk.provider, pk.model)
+    else:
+        rl.set_cooldown(pk.alias, pk.provider, pk.model, status_code=429)
     return {"alias": alias, "ok": ok, "latency_ms": round(latency,1), "error": err}
 
 @router.post("/{alias}/reset_circuit")
 def reset_circuit(alias: str, x_admin_key: str = Header(default="")):
     _auth(x_admin_key)
-    get_cb().reset(alias)
+    pk = get_registry().get(alias)
+    if pk:
+        get_limiter().clear_cooldown(pk.alias, pk.provider, pk.model)
     return {"ok": True}
 
 @router.post("/probe_all")

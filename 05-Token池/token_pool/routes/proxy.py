@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, HTTPException, Header
 from fastapi.responses import JSONResponse, StreamingResponse
 import httpx
 from pool.caller import call_with_fallback
-from pool.scheduler import pick_all_ranked
+from pool.scheduler import pick_all
 from config import cfg
 
 router = APIRouter(tags=["proxy"])
@@ -31,7 +31,7 @@ async def chat_completions(request: Request, authorization: str = Header(default
 
     # Stream 模式：直接转发到第一个可用Key
     if payload.get("stream"):
-        candidates = pick_all_ranked(task)
+        candidates = pick_all(task)
         if not candidates:
             raise HTTPException(503, "No available keys")
         pk = candidates[0]
@@ -46,7 +46,6 @@ async def chat_completions(request: Request, authorization: str = Header(default
 
 async def _stream_proxy(pk, payload):
     from pool.registry import get_registry
-    from pool.circuit import get_cb
     from pool.metrics import get_hub
     import time as _t
 
@@ -64,11 +63,11 @@ async def _stream_proxy(pk, payload):
                 async with c.stream("POST", url, headers=headers, json={**payload,"model":pk.model}) as r:
                     async for chunk in r.aiter_bytes():
                         yield chunk
-            get_cb().on_success(pk.alias)
+            rl = get_limiter(); rl.clear_cooldown(pk.alias, pk.provider, pk.model)
             get_hub().record(pk.alias, (_t.time()-start)*1000, 0, 0, True)
             get_registry().update_stat(pk.alias, "working", (_t.time()-start)*1000, 0, 0, True)
         except Exception as e:
-            get_cb().on_failure(pk.alias)
+            rl = get_limiter(); rl.set_cooldown(pk.alias, pk.provider, pk.model, status_code=429)
             get_hub().record(pk.alias, (_t.time()-start)*1000, 0, 0, False)
             yield b"data: {\"error\": \"" + str(e).encode()[:100] + b"\"}\n\n"
 

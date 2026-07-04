@@ -1,7 +1,7 @@
 """统计与监控"""
 from fastapi import APIRouter, Header, HTTPException, Query
 from pool.registry import get_registry
-from pool.circuit import get_cb
+from pool.ratelimit import get_limiter
 from pool.metrics import get_hub
 from config import cfg
 
@@ -13,21 +13,22 @@ def _auth(k):
 @router.get("")
 def overview(x_admin_key: str = Header(default="")):
     _auth(x_admin_key)
-    reg = get_registry(); hub = get_hub(); cb = get_cb()
+    reg = get_registry(); rl = get_limiter(); hub = get_hub()
     keys = reg.all()
     total_cost = sum(pk.total_cost for pk in keys)
     total_tokens = sum(pk.total_tokens for pk in keys)
     working = sum(1 for pk in keys if pk.status == "working")
-    circuits = cb.status_all()
+    cooldown_count = sum(1 for pk in keys if rl.is_on_cooldown(pk.alias, pk.provider, pk.model))
+    cooldown_statuses = {pk.alias: rl.status(pk.alias, pk.provider, pk.model) for pk in keys}
     return {
         "total_keys": len(keys),
         "working_keys": working,
         "failed_keys": sum(1 for pk in keys if pk.status == "failed"),
-        "circuit_open": sum(1 for pk in keys if cb.is_open(pk.alias)),
+        "circuit_open": cooldown_count,
         "total_tokens_all_time": total_tokens,
         "total_cost_all_time": round(total_cost, 6),
         "metrics_5m": hub.all_snapshots(),
-        "circuits": circuits,
+        "cooldowns": cooldown_statuses,
     }
 
 @router.get("/log")

@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio, time, logging
 import httpx
 from pool.registry import ProviderKey, get_registry
-from pool.circuit import get_cb
+from pool.ratelimit import get_limiter
 from pool.metrics import get_hub
-from pool.scheduler import pick_all_ranked
+from pool.scheduler import pick_all
 
 log = logging.getLogger(__name__)
 
@@ -45,8 +45,8 @@ async def _call_anthropic(pk: ProviderKey, payload: dict, timeout=120) -> dict:
 
 async def call_with_fallback(payload: dict, task: str = "chat", budget: float = 0.0, max_retries: int = 3) -> tuple[dict, str]:
     """自动故障转移调用，返回 (response_dict, alias_used)"""
-    cb = get_cb(); hub = get_hub(); reg = get_registry()
-    candidates = pick_all_ranked(task, budget)
+    rl = get_limiter(); hub = get_hub(); reg = get_registry()
+    candidates = pick_all(task)
     if not candidates:
         raise RuntimeError("token pool 中没有可用的 Key（全部熔断或未配置）")
 
@@ -61,7 +61,9 @@ async def call_with_fallback(payload: dict, task: str = "chat", budget: float = 
             latency = (time.time()-start)*1000
             tokens = resp.get("usage",{}).get("total_tokens", 0)
             cost = tokens / 1000 * pk.cost_per_1k
-            cb.on_success(pk.alias)
+            rl.clear_cooldown(pk.alias, pk.provider, pk.model)
+            rl.record_request(pk.alias, pk.provider, pk.model)
+            rl.record_tokens(pk.alias, tokens, pk.provider, pk.model)
             hub.record(pk.alias, latency, tokens, cost, True)
             reg.update_stat(pk.alias, "working", latency, tokens, cost, True)
             log.info("✅ %s (%.0fms, %dt)", pk.alias, latency, tokens)
@@ -69,9 +71,19 @@ async def call_with_fallback(payload: dict, task: str = "chat", budget: float = 
         except Exception as e:
             latency = (time.time()-start)*1000
             last_err = str(e)[:200]
-            cb.on_failure(pk.alias)
+            rl.set_cooldown(pk.alias, pk.provider, pk.model, status_code=_extract_status(e))
+            rl.record_request(pk.alias, pk.provider, pk.model)
             hub.record(pk.alias, latency, 0, 0, False)
             reg.update_stat(pk.alias, "failed", latency, 0, 0, False, last_err)
             log.warning("❌ %s: %s", pk.alias, last_err[:80])
 
     raise RuntimeError(f"所有 {min(max_retries,len(candidates))} 个候选Key均失败，最后错误: {last_err}")
+
+
+def _extract_status(exc: Exception) -> int:
+    """从异常中提取HTTP状态码"""
+    s = str(exc)
+    if "402" in s or "Payment Required" in s: return 402
+    if "403" in s or "Forbidden" in s: return 403
+    if "429" in s: return 429
+    return 429

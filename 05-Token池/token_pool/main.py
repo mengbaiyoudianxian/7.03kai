@@ -36,10 +36,10 @@ app.include_router(auth_router)
 @app.get("/health")
 def health():
     from pool.registry import get_registry
-    from pool.circuit import get_cb
+    from pool.ratelimit import get_limiter
     keys = get_registry().all(enabled_only=True)
-    cb = get_cb()
-    working = [k for k in keys if k.status == "working" and not cb.is_open(k.alias)]
+    rl = get_limiter()
+    working = [k for k in keys if k.status == "working" and not rl.is_on_cooldown(k.alias, "", "")]
     return {"ok": True, "total": len(keys), "working": len(working), "version": "1.0.0"}
 
 if __name__ == "__main__":
