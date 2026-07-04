@@ -107,6 +107,21 @@ input:focus,select:focus{border-color:#58a6ff;outline:none}
   </div>
 
   <div class="section">
+    <div class="section-header"><h2>🔌 MiClaw 账号管理</h2>
+      <button class="btn" onclick="loadMiclaw()">刷新</button>
+    </div>
+    <div style="overflow-x:auto">
+    <table id="miclaw-table">
+      <thead><tr>
+        <th>小米账号</th><th>登录状态</th><th>归属用户</th><th>借用白名单</th>
+        <th>主人/共享/预留</th><th>今日用量</th><th>操作</th>
+      </tr></thead>
+      <tbody id="miclaw-tbody"><tr><td colspan="7" style="text-align:center;color:#8b949e;padding:20px">点击刷新加载</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-header"><h2>📊 调用日志</h2>
       <select id="log-alias" onchange="loadLog()" style="font-size:12px;padding:4px 8px">
         <option value="">全部</option>
@@ -288,6 +303,58 @@ async function setRatio(userCode, ratio, slider) {
   } catch(e) { toast('更新失败: '+e.message, true); }
 }
 
+// ── P2-6 MiClaw 账号管理 ──
+
+async function loadMiclaw() {
+  try {
+    const data = await apiFetch('/api/shared-keys/miclaw-accounts');
+    renderMiclaw(data);
+  } catch(e) { toast('加载MiClaw失败: '+e.message, true); }
+}
+
+function renderMiclaw(accts) {
+  const tbody = document.getElementById('miclaw-tbody');
+  if (!accts.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#8b949e;padding:20px">暂无MiClaw账号</td></tr>'; return; }
+  tbody.innerHTML = accts.map(a => {
+    const owner = a.owner_user_code || '-';
+    const wl = a.borrower_whitelist || '-';
+    const ratios = `${((a.owner_ratio||0.7)*100).toFixed(0)}%/${((a.shared_ratio||0.2)*100).toFixed(0)}%/${((a.reserved_ratio||0.1)*100).toFixed(0)}%`;
+    const used = (a.total_tokens_today||0).toLocaleString();
+    const statusBadge = a.login_status==='logged_in'?'<span class="badge badge-ok">✅ 已登录</span>'
+      : a.login_status==='pending'?'<span class="badge badge-unknown">⏳ 待验证</span>'
+      : '<span class="badge badge-fail">❌ '+a.login_status+'</span>';
+    return `<tr>
+      <td><b>${a.username}</b></td>
+      <td>${statusBadge}</td>
+      <td><input value="${owner}" style="width:100px;font-size:11px;padding:2px 4px" onchange="saveBorrower(${a.id},'owner',this.value)"></td>
+      <td><input value="${wl}" style="width:140px;font-size:11px;padding:2px 4px" onchange="saveBorrower(${a.id},'wl',this.value)"></td>
+      <td style="font-size:11px">${ratios}</td>
+      <td>${used}</td>
+      <td style="white-space:nowrap">
+        <input type="range" min="0" max="100" value="${((a.owner_ratio||0.7)*100).toFixed(0)}" style="width:50px" title="主人比例"
+          onchange="saveBorrower(${a.id},'or',this.value/100,this)">
+        <input type="range" min="0" max="100" value="${((a.shared_ratio||0.2)*100).toFixed(0)}" style="width:50px" title="共享比例"
+          onchange="saveBorrower(${a.id},'sr',this.value/100,this)">
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function saveBorrower(accountId, field, value, slider) {
+  const body = {};
+  if (field === 'owner') body.owner_user_code = value;
+  else if (field === 'wl') body.whitelist = value;
+  else if (field === 'or') body.owner_ratio = value;
+  else if (field === 'sr') body.shared_ratio = value;
+  try {
+    await apiFetch(`/api/shared-keys/miclaw-accounts/${accountId}/borrower`, {
+      method:'POST', body:JSON.stringify(body)
+    });
+    if (!slider) { toast('已保存'); loadMiclaw(); }
+    else toast(`比例: ${(value*100).toFixed(0)}%`);
+  } catch(e) { toast('保存失败: '+e.message, true); }
+}
+
 async function loadLog() {
   const alias = document.getElementById('log-alias').value;
   try {
@@ -395,7 +462,7 @@ async function probeAll() {
   finally { btn.textContent='🔍 全量检测'; btn.disabled=false; }
 }
 
-function loadAll() { loadStats(); loadKeys(); loadUsers(); }
+function loadAll() { loadStats(); loadKeys(); loadUsers(); loadMiclaw(); }
 
 // 启动
 if (!ADMIN_KEY) { promptAdminKey(); } else { loadAll(); setInterval(loadStats, 30000); }

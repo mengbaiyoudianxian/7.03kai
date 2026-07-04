@@ -32,3 +32,30 @@ def set_ratio(user_code: str, body: RatioUpdate):
     reg = get_registry()
     reg.update_shared_key_ratio(user_code, ratio)
     return {"user_code": user_code, "allowed_ratio": ratio, "ok": True}
+
+
+# ── P2-12: MiClaw 账号归属 + 借用白名单 ──
+
+@router.get("/miclaw-accounts")
+def list_miclaw():
+    """列出所有 MiClaw 账号（含归属+白名单）"""
+    return get_registry().list_miclaw_accounts()
+
+
+class BorrowerUpdate(BaseModel):
+    owner_user_code: str = ""
+    whitelist: str = ""       # 逗号分隔
+    owner_ratio: float = -1   # <0=不改
+    shared_ratio: float = -1
+
+
+@router.post("/miclaw-accounts/{account_id}/borrower")
+def set_borrower(account_id: int, body: BorrowerUpdate):
+    """P2-12: 设置 MiClaw 账号的归属用户 + 借用白名单 + 配额比例"""
+    reg = get_registry()
+    reg.update_miclaw_borrower(account_id,
+                               owner_user_code=body.owner_user_code,
+                               whitelist=body.whitelist,
+                               owner_ratio=body.owner_ratio,
+                               shared_ratio=body.shared_ratio)
+    return {"account_id": account_id, "ok": True}

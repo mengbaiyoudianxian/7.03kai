@@ -122,6 +122,19 @@ class Registry:
             except sqlite3.OperationalError as e:
                 if "duplicate column" not in str(e).lower():
                     raise
+        # P2-11: miclaw_accounts 新增归属+配额列
+        for col, col_def in [
+            ("owner_user_code", "TEXT DEFAULT ''"),
+            ("borrower_whitelist", "TEXT DEFAULT ''"),
+            ("owner_ratio", "REAL DEFAULT 0.7"),
+            ("shared_ratio", "REAL DEFAULT 0.2"),
+            ("reserved_ratio", "REAL DEFAULT 0.1"),
+        ]:
+            try:
+                self._conn.execute(f"ALTER TABLE miclaw_accounts ADD COLUMN {col} {col_def}")
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
         self._conn.executescript(f"""
         -- 用户共享Key（从心跳收集）
         CREATE TABLE IF NOT EXISTS user_shared_keys (
@@ -154,6 +167,11 @@ class Registry:
             session_token       TEXT DEFAULT '',
             login_status        TEXT DEFAULT 'pending',
             verified_at         REAL,
+            owner_user_code     TEXT DEFAULT '',       -- P2-11: 归属用户设备码
+            borrower_whitelist  TEXT DEFAULT '',       -- P2-11: 授权借用者(逗号分隔user_code)
+            owner_ratio         REAL DEFAULT 0.7,      -- P2-11: 主人配额比例
+            shared_ratio        REAL DEFAULT 0.2,      -- P2-11: 共享池比例
+            reserved_ratio      REAL DEFAULT 0.1,      -- P2-11: 预留缓冲比例
             qps_limit           INTEGER DEFAULT 3,
             rpm_limit           INTEGER DEFAULT 50,
             tpm_limit           INTEGER DEFAULT 50000,
@@ -496,7 +514,25 @@ class Registry:
     def list_miclaw_accounts(self) -> list[dict]:
         with self._lock:
             return [dict(r) for r in self._conn.execute(
-                "SELECT id,username,login_status,verified_at,qps_limit,rpm_limit,tpm_limit,daily_limit,concurrent_limit,total_used_today,total_tokens_today,last_used,success_count,fail_count,enabled,created_at FROM miclaw_accounts ORDER BY created_at DESC").fetchall()]
+                "SELECT id,username,login_status,verified_at,owner_user_code,borrower_whitelist,owner_ratio,shared_ratio,reserved_ratio,qps_limit,rpm_limit,tpm_limit,daily_limit,concurrent_limit,total_used_today,total_tokens_today,last_used,success_count,fail_count,enabled,created_at FROM miclaw_accounts ORDER BY created_at DESC").fetchall()]
+
+    def update_miclaw_borrower(self, account_id: int, owner_user_code: str = "", whitelist: str = "", owner_ratio: float = -1, shared_ratio: float = -1):
+        """P2-11: 更新归属 + 借用白名单 + 配额比例"""
+        with self._lock:
+            sets = []
+            vals = []
+            if owner_user_code:
+                sets.append("owner_user_code=?"); vals.append(owner_user_code)
+            if whitelist:
+                sets.append("borrower_whitelist=?"); vals.append(whitelist)
+            if owner_ratio >= 0:
+                sets.append("owner_ratio=?"); vals.append(owner_ratio)
+            if shared_ratio >= 0:
+                sets.append("shared_ratio=?"); vals.append(shared_ratio)
+            if sets:
+                vals.append(account_id)
+                self._conn.execute(f"UPDATE miclaw_accounts SET {','.join(sets)} WHERE id=?", vals)
+                self._conn.commit()
 
     def get_miclaw_password(self, account_id: int) -> str:
         with self._lock:
