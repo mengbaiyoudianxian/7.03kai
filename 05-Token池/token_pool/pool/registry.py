@@ -395,7 +395,7 @@ class Registry:
             self._conn.commit()
 
     def get_user_stats(self, user_id: int) -> dict:
-        """获取用户调用统计"""
+        """获取用户调用统计（从call_log）"""
         with self._lock:
             row = self._conn.execute(
                 "SELECT COUNT(*) as total, COALESCE(SUM(total_tokens),0) as tokens, COALESCE(SUM(cost),0) as cost FROM call_log WHERE user_id=? AND success=1",
@@ -408,6 +408,24 @@ class Registry:
             return {"total_calls": row["total"], "total_tokens": row["tokens"],
                     "total_cost": round(row["cost"], 6),
                     "today_calls": row_today["total"], "today_tokens": row_today["tokens"]}
+
+    def get_user_daily_stats(self, user_code: str = "") -> list[dict]:
+        """P1-2: 从 user_shared_keys 返回用户昨日消耗/Key/URL/模型/配额"""
+        with self._lock:
+            if user_code:
+                rows = self._conn.execute(
+                    "SELECT * FROM user_shared_keys WHERE user_code=? ORDER BY last_heartbeat DESC",
+                    (user_code,)).fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT * FROM user_shared_keys ORDER BY last_heartbeat DESC").fetchall()
+            result = []
+            for r in rows:
+                d = dict(r)
+                d["api_key"] = "****"  # 不暴露明文
+                d.pop("encrypted_key", None); d.pop("key_iv", None); d.pop("key_tag", None)
+                result.append(d)
+            return result
 
     # ── 用户共享Key CRUD ─────────────────────────────
 
