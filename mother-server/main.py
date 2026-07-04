@@ -7,7 +7,7 @@ import asyncio, logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Cookie
+from fastapi import FastAPI, Cookie, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -25,7 +25,24 @@ Path(cfg.data_dir).mkdir(parents=True, exist_ok=True)
 async def lifespan(app: FastAPI):
     from mother.evolution.daily import run_forever
     asyncio.ensure_future(run_forever())
+    # G4: 启动 Gateway 适配器
+    asyncio.ensure_future(_start_gateway())
     yield
+
+
+async def _start_gateway():
+    """启动所有渠道适配器"""
+    from gateway import register
+    from gateway.adapters.qqbot import QQBotAdapter
+    from gateway.adapters.wechat import WechatAdapter
+    from gateway.agent import on_channel_message
+
+    adapters = [QQBotAdapter(), WechatAdapter()]
+    for a in adapters:
+        a.set_on_message(on_channel_message)
+        register(a)
+        await a.start()
+    print(f"[gateway] {len(adapters)} adapters started")
 
 
 app = FastAPI(title="MBclaw Mother", version="2.0.0", lifespan=lifespan)
@@ -52,6 +69,23 @@ def admin_panel(mb_admin: str = Cookie(default=None)):
 @app.get("/health")
 def health():
     return {"ok": True, "version": "2.0.0", "owner": cfg.owner_name}
+
+
+# G3: 微信 Webhook 回调
+@app.post("/gateway/wechat")
+async def wechat_webhook(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    from gateway import get_adapter
+    from gateway.agent import handle_message
+    adapter = get_adapter("wechat")
+    if adapter:
+        msg = await adapter.handle_callback(body)
+        reply = await handle_message(msg)
+        return {"reply": reply}
+    return {"error": "wechat adapter not running"}
 
 
 if __name__ == "__main__":
