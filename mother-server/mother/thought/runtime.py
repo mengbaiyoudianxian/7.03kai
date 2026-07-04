@@ -55,6 +55,13 @@ TOOLS = [
             "category": {"type": "string", "enum": ["fact", "procedure", "rule"]},
         }, "required": ["key", "value"]},
     }},
+    {"type": "function", "function": {
+        "name": "shell",
+        "description": "在服务器上执行 shell 命令，控制服务器",
+        "parameters": {"type": "object", "properties": {
+            "command": {"type": "string", "description": "要执行的 shell 命令"},
+        }, "required": ["command"]},
+    }},
 ]
 
 TOOL_MAP = {
@@ -63,6 +70,7 @@ TOOL_MAP = {
     "memory_search":  ("run_memory_search", "research"),
     "summary":        ("run_summary",    "cheap"),
     "learn":          ("_learn",         "cheap"),
+    "shell":          ("run_shell",      "cheap"),
 }
 
 
@@ -155,7 +163,7 @@ class ThoughtRuntime:
                     return f"已学习: {key} = {val[:100]}"
                 return "learn 参数不完整"
 
-            if tool_name in ("run_code", "research", "memory_search", "summary"):
+            if tool_name in ("run_code", "research", "memory_search", "summary", "shell"):
                 from mother import workers
                 worker_func = getattr(workers, TOOL_MAP[tool_name][0])
                 kwargs = {k: v for k, v in args.items() if k not in ("", None)}
