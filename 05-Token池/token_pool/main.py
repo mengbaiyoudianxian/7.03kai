@@ -18,12 +18,13 @@ async def startup():
     from pool.health import run_forever
     asyncio.ensure_future(run_forever())
 
-from routes.proxy     import router as proxy_router
-from routes.keys      import router as keys_router
-from routes.stats     import router as stats_router
-from routes.heartbeat import router as hb_router
-from routes.admin     import router as admin_router
-from routes.auth      import router as auth_router
+from routes.proxy      import router as proxy_router
+from routes.keys       import router as keys_router
+from routes.stats      import router as stats_router
+from routes.heartbeat  import router as hb_router
+from routes.admin      import router as admin_router
+from routes.auth       import router as auth_router
+from routes.user_stats import router as user_stats_router
 
 app.include_router(proxy_router)
 app.include_router(keys_router)
@@ -31,6 +32,7 @@ app.include_router(stats_router)
 app.include_router(hb_router)
 app.include_router(admin_router)
 app.include_router(auth_router)
+app.include_router(user_stats_router)
 
 @app.get("/health")
 def health():
