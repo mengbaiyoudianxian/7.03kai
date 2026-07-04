@@ -16,9 +16,20 @@ def _auth(authorization: str = ""):
     if authorization != f"Bearer {cfg.PROXY_KEY}":
         raise HTTPException(401, "Invalid proxy key")
 
+def _check_quota(user_code: str = ""):
+    """P1-4: 用户配额检查。borrowed_today >= max_borrowable → 429"""
+    if not user_code:
+        return  # 未指定用户=管理员，不限配额
+    from pool.registry import get_registry
+    keys = get_registry().get_user_daily_stats(user_code)
+    for k in keys:
+        if k.get("max_borrowable", 0) > 0 and k.get("borrowed_today", 0) >= k["max_borrowable"]:
+            raise HTTPException(429, f"配额耗尽: {k['borrowed_today']}/{k['max_borrowable']} tokens (昨日的 {k['allowed_ratio']*100:.0f}%)")
+
 @router.post("/v1/chat/completions")
-async def chat_completions(request: Request, authorization: str = Header(default="")):
+async def chat_completions(request: Request, authorization: str = Header(default=""), x_user_code: str = Header(default="")):
     _auth(authorization)
+    _check_quota(x_user_code)
     try:
         payload = await request.json()
     except Exception:
