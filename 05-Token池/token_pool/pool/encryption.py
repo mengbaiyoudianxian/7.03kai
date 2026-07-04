@@ -5,6 +5,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 _KEY_BYTES = 32
 _KEY_HEX_LEN = _KEY_BYTES * 2
+AUTH_TAG_BYTES = 16  # 锁定GCM标签长度，防截断攻击（参考freellmapi）
 
 _cached_key: bytes | None = None
 
@@ -43,17 +44,19 @@ def encrypt(plaintext: str) -> tuple[str, str, str]:
     iv = secrets.token_bytes(12)
     aesgcm = AESGCM(_key())
     ciphertext = aesgcm.encrypt(iv, plaintext.encode(), None)
-    # AESGCM.encrypt 返回 ciphertext + 16-byte tag 拼接
-    encrypted = ciphertext[:-16]
-    tag = ciphertext[-16:]
+    # AESGCM.encrypt 返回 ciphertext + AUTH_TAG_BYTES tag 拼接
+    encrypted = ciphertext[:-AUTH_TAG_BYTES]
+    tag = ciphertext[-AUTH_TAG_BYTES:]
     return encrypted.hex(), iv.hex(), tag.hex()
 
 
 def decrypt(encrypted_hex: str, iv_hex: str, tag_hex: str) -> str:
-    """解密，认证失败自动抛异常"""
+    """解密，认证失败自动抛异常。tag长度锁定防截断攻击"""
     encrypted = bytes.fromhex(encrypted_hex)
     iv = bytes.fromhex(iv_hex)
     tag = bytes.fromhex(tag_hex)
+    if len(tag) != AUTH_TAG_BYTES:
+        raise ValueError(f"认证标签长度异常: {len(tag)}字节（预期{AUTH_TAG_BYTES}），可能被截断篡改")
     aesgcm = AESGCM(_key())
     return aesgcm.decrypt(iv, encrypted + tag, None).decode()
 
