@@ -1,0 +1,28 @@
+# 外部参考项目（独立 Git 仓库，不纳入主仓库）
+freellmapi/
+miclaw/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 环境变量
+.env
+.env.local
+
+# Token Pool 数据
+*.db
+/var/lib/token_pool/
