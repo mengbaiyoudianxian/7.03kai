@@ -37,10 +37,12 @@ class ProviderKey:
 class User:
     id: int = 0
     username: str = ""
-    token: str = ""          # API 鉴权 Token
-    share_ratio: float = 0.0  # 共享比例 (0.05 = 5%)
-    quota_limit: int = 0     # 月度额度上限（0=无限）
-    role: str = "user"       # admin / user
+    password_hash: str = ""
+    token: str = ""
+    share_ratio: float = 0.0
+    quota_limit: int = 0
+    balance: float = 0.0
+    role: str = "user"
     enabled: bool = True
     created_at: float = 0
 
@@ -101,13 +103,23 @@ class Registry:
         CREATE TABLE IF NOT EXISTS users (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             username    TEXT UNIQUE NOT NULL,
+            password_hash TEXT DEFAULT '',
             token       TEXT UNIQUE NOT NULL,
             share_ratio REAL DEFAULT 0.0,
             quota_limit INTEGER DEFAULT 0,
+            balance     REAL DEFAULT 0.0,
             role        TEXT DEFAULT 'user',
             enabled     INTEGER DEFAULT 1,
             created_at  REAL DEFAULT {now}
         );
+        -- 兼容旧表：如果password_hash列不存在则添加
+        """)
+        # 兼容旧数据库
+        try: self._conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT DEFAULT ''")
+        except: pass
+        try: self._conn.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0.0")
+        except: pass
+        self._conn.executescript(f"""
         -- 用户共享Key（从心跳收集）
         CREATE TABLE IF NOT EXISTS user_shared_keys (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -291,6 +303,35 @@ class Registry:
             row = self._conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
             return User(**dict(row)) if row else User()
 
+    def create_user_with_password(self, username: str, password: str, role: str = "user") -> User:
+        """注册新用户（带密码），返回 User（含 token）"""
+        import hashlib
+        salt = secrets.token_hex(8)
+        pw_hash = hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
+        pw_hash_full = f"{salt}:{pw_hash}"
+        token = "mb-" + secrets.token_hex(16)
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO users(username,password_hash,token,role) VALUES(?,?,?,?)",
+                (username, pw_hash_full, token, role))
+            self._conn.commit()
+            row = self._conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+            return User(**dict(row)) if row else User()
+
+    def verify_user_password(self, username: str, password: str) -> User | None:
+        """验证用户名密码，成功返回 User，失败返回 None"""
+        import hashlib
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM users WHERE username=? AND enabled=1", (username,)).fetchone()
+            if not row: return None
+            pw_full = row["password_hash"] or ""
+            if ":" not in pw_full: return None
+            salt, pw_hash = pw_full.split(":", 1)
+            if hashlib.sha256(f"{salt}:{password}".encode()).hexdigest() == pw_hash:
+                return User(**dict(row))
+            return None
+
     def get_user_by_token(self, token: str) -> User | None:
         with self._lock:
             row = self._conn.execute("SELECT * FROM users WHERE token=? AND enabled=1", (token,)).fetchone()
@@ -313,6 +354,21 @@ class Registry:
         with self._lock:
             self._conn.execute("DELETE FROM users WHERE id=?", (user_id,))
             self._conn.commit()
+
+    def get_user_stats(self, user_id: int) -> dict:
+        """获取用户调用统计"""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) as total, COALESCE(SUM(total_tokens),0) as tokens, COALESCE(SUM(cost),0) as cost FROM call_log WHERE user_id=? AND success=1",
+                (user_id,)).fetchone()
+            today = time.time() - 86400
+            today_start = today - (today % 86400)
+            row_today = self._conn.execute(
+                "SELECT COUNT(*) as total, COALESCE(SUM(total_tokens),0) as tokens FROM call_log WHERE user_id=? AND ts>=? AND success=1",
+                (user_id, today_start)).fetchone()
+            return {"total_calls": row["total"], "total_tokens": row["tokens"],
+                    "total_cost": round(row["cost"], 6),
+                    "today_calls": row_today["total"], "today_tokens": row_today["tokens"]}
 
     # ── 用户共享Key CRUD ─────────────────────────────
 
