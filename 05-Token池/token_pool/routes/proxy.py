@@ -26,10 +26,20 @@ def _check_quota(user_code: str = ""):
         if k.get("max_borrowable", 0) > 0 and k.get("borrowed_today", 0) >= k["max_borrowable"]:
             raise HTTPException(429, f"配额耗尽: {k['borrowed_today']}/{k['max_borrowable']} tokens (昨日的 {k['allowed_ratio']*100:.0f}%)")
 
+def _check_user_rl(user_code: str = ""):
+    """P1-5: 每用户 RPM/RPD/TPD 限流"""
+    if not user_code:
+        return
+    from pool.user_ratelimit import get_user_limiter
+    ok, retry = get_user_limiter().check(user_code)
+    if not ok:
+        raise HTTPException(429, f"用户限流, {retry:.0f}s 后重试")
+
 @router.post("/v1/chat/completions")
 async def chat_completions(request: Request, authorization: str = Header(default=""), x_user_code: str = Header(default="")):
     _auth(authorization)
     _check_quota(x_user_code)
+    _check_user_rl(x_user_code)
     try:
         payload = await request.json()
     except Exception:
