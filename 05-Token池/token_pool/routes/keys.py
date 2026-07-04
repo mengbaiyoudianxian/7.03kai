@@ -45,6 +45,10 @@ def list_keys(x_admin_key: str = Header(default="")):
 @router.post("")
 def add_key(body: KeyIn, x_admin_key: str = Header(default="")):
     _auth(x_admin_key)
+    from pool.url_guard import validate_url
+    ok, reason = validate_url(body.base_url)
+    if not ok:
+        raise HTTPException(400, f"SSRF: {reason}")
     pk = ProviderKey(**body.model_dump())
     saved = get_registry().upsert(pk)
     return {"ok": True, "id": saved.id, "alias": saved.alias}
@@ -52,6 +56,10 @@ def add_key(body: KeyIn, x_admin_key: str = Header(default="")):
 @router.put("/{alias}")
 def update_key(alias: str, body: KeyIn, x_admin_key: str = Header(default="")):
     _auth(x_admin_key)
+    from pool.url_guard import validate_url
+    ok, reason = validate_url(body.base_url)
+    if not ok:
+        raise HTTPException(400, f"SSRF: {reason}")
     reg = get_registry()
     existing = reg.get(alias)
     if not existing: raise HTTPException(404, f"Key {alias} not found")

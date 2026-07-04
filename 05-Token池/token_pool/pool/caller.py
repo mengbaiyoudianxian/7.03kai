@@ -18,6 +18,15 @@ from pool.scoring import get_tracker, BUILTIN_CAPABILITIES
 
 log = logging.getLogger(__name__)
 
+# P3-2: Key脱敏 — 保留首尾4字符，中间替换为****
+_KEY_RE = re.compile(r'(sk-[a-zA-Z0-9_-]{20,})')
+
+def _redact_key(text: str) -> str:
+    def _mask(m):
+        k = m.group(1)
+        return k[:4] + "****" + k[-4:] if len(k) > 12 else "****"
+    return _KEY_RE.sub(_mask, text)
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Token 估算 (hybrid: rough + correction)
@@ -250,7 +259,7 @@ async def call_with_fallback(payload: dict, task: str = "chat", budget: float = 
 
         except Exception as e:
             latency = (time.time() - start) * 1000
-            last_err = str(e)[:200]
+            last_err = _redact_key(str(e)[:200])
             status_code = _extract_status(e)
 
             rl.set_cooldown(pk.alias, pk.provider, pk.model, status_code=status_code)
@@ -266,8 +275,8 @@ async def call_with_fallback(payload: dict, task: str = "chat", budget: float = 
 
     diag = skipped.summary()
     raise RuntimeError(
-        f"所有 {min(max_retries, len(usable))} 个候选Key均调用失败。\n"
-        f"最后错误: {last_err}\n{diag}")
+        _redact_key(f"所有 {min(max_retries, len(usable))} 个候选Key均调用失败。\n"
+        f"最后错误: {last_err}\n{diag}"))
 
 
 def _extract_status(exc: Exception) -> int:
