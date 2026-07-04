@@ -58,27 +58,49 @@ class MiClawProvider(BaseProvider):
 
 
 class MiClawAccountManager:
-    """多账号管理器：轮询选择 + 速率控制（P2-9 增强）"""
+    """多账号管理器 + P2-9: 70/30/10 速率分层"""
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._idx: dict[str, int] = {}  # model → round-robin index
+        self._idx: dict[str, int] = {}
 
-    def get_provider(self, model: str = "miclaw") -> MiClawProvider | None:
-        """获取下一个可用账号的 Provider"""
+    def get_provider(self, caller_user_code: str = "", model: str = "miclaw") -> MiClawProvider | None:
+        """按优先级选账号：主人独占 → 白名单借用 → 跳过"""
         reg = get_registry()
-        accts = [a for a in reg.list_miclaw_accounts()
-                 if a.get("enabled") and a.get("login_status") == "logged_in"]
-        if not accts:
+        accts = reg.list_miclaw_accounts()
+        candidates = []
+        for a in accts:
+            if not a.get("enabled") or a.get("login_status") != "logged_in":
+                continue
+            owner = a.get("owner_user_code", "")
+            wl = a.get("borrower_whitelist", "")
+            wl_set = set(w.strip() for w in wl.split(",") if w.strip()) if wl else set()
+
+            if caller_user_code and caller_user_code == owner:
+                # 主人：全量 owner_ratio 份额
+                owner_pct = a.get("owner_ratio", 0.7)
+                cap = int((a.get("daily_limit", 500) or 500) * owner_pct)
+                used = a.get("total_used_today", 0)
+                if used < cap:
+                    candidates.insert(0, (a, cap - used))  # 插队到最前
+            elif caller_user_code and caller_user_code in wl_set:
+                # 白名单借用者：共享池份额
+                shared_pct = a.get("shared_ratio", 0.2)
+                cap = int((a.get("daily_limit", 500) or 500) * shared_pct)
+                used_shared = int(a.get("total_used_today", 0) * (1 - a.get("owner_ratio", 0.7)))
+                if used_shared < cap:
+                    candidates.append((a, cap - used_shared))
+            elif not caller_user_code:
+                # 无 caller_user_code → 管理员/系统调用，任意账号均可
+                candidates.append((a, 999999))
+        if not candidates:
             return None
-        with self._lock:
-            idx = self._idx.get(model, 0) % len(accts)
-            self._idx[model] = idx + 1
-        a = accts[idx]
+        # 选剩余额度最大的
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        a = candidates[0][0]
         return MiClawProvider(account_id=a["id"], username=a["username"])
 
     def list_providers(self) -> list[MiClawProvider]:
-        """列出所有已登录账号"""
         reg = get_registry()
         return [MiClawProvider(account_id=a["id"], username=a["username"])
                 for a in reg.list_miclaw_accounts()

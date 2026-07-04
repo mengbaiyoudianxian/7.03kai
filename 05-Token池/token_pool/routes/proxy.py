@@ -59,13 +59,22 @@ async def chat_completions(request: Request, authorization: str = Header(default
     task = "code" if any(k in model_hint for k in ("claude","opus")) else \
            "cheap" if any(k in model_hint for k in ("mini","haiku","deepseek","cheap")) else "chat"
 
-    # Stream 模式：直接转发到第一个可用Key
+    # P2-10: Stream 模式 — 故障转移，逐个尝试候选Key
     if payload.get("stream"):
         candidates = pick_all(task)
         if not candidates:
             raise HTTPException(503, "No available keys")
-        pk = candidates[0]
-        return await _stream_proxy(pk, payload)
+        last_err = ""
+        for pk in candidates[:3]:  # 最多试3个
+            try:
+                return await _stream_proxy(pk, payload)
+            except HTTPException:
+                raise
+            except Exception as e:
+                last_err = str(e)
+                log.warning("Stream failover: %s → %s", pk.alias, e)
+                continue
+        raise HTTPException(503, f"All stream keys failed: {last_err}")
 
     try:
         resp, alias = await call_with_fallback(payload, task)
