@@ -472,6 +472,14 @@ class Registry:
                 (ratio, ratio, user_code))
             self._conn.commit()
 
+    def increment_borrowed(self, user_code: str, tokens: int):
+        """P1-4: 递增已借出Token计数"""
+        with self._lock:
+            self._conn.execute(
+                "UPDATE user_shared_keys SET borrowed_today=borrowed_today+? WHERE user_code=?",
+                (tokens, user_code))
+            self._conn.commit()
+
     # ── MiClaw 账号 CRUD ─────────────────────────────
 
     def add_miclaw_account(self, username: str, password: str) -> int:

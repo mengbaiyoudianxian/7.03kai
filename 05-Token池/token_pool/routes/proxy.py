@@ -1,6 +1,6 @@
 """OpenAI 兼容代理 /v1/chat/completions"""
 from __future__ import annotations
-import json, time, logging
+import logging
 from fastapi import APIRouter, Request, HTTPException, Header
 from fastapi.responses import JSONResponse, StreamingResponse
 import httpx
@@ -35,6 +35,15 @@ def _check_user_rl(user_code: str = ""):
     if not ok:
         raise HTTPException(429, f"用户限流, {retry:.0f}s 后重试")
 
+def _record_usage(user_code: str = "", tokens: int = 0):
+    """P1-4+P1-5: 成功后记录限流消耗 + 递增 borrowed_today"""
+    if not user_code:
+        return
+    from pool.user_ratelimit import get_user_limiter
+    from pool.registry import get_registry
+    get_user_limiter().record(user_code, tokens)
+    get_registry().increment_borrowed(user_code, tokens)
+
 @router.post("/v1/chat/completions")
 async def chat_completions(request: Request, authorization: str = Header(default=""), x_user_code: str = Header(default="")):
     _auth(authorization)
@@ -60,7 +69,8 @@ async def chat_completions(request: Request, authorization: str = Header(default
 
     try:
         resp, alias = await call_with_fallback(payload, task)
-        resp["_pool_alias"] = alias  # 调试信息
+        resp["_pool_alias"] = alias
+        _record_usage(x_user_code, resp.get("usage", {}).get("total_tokens", 0))
         return JSONResponse(resp)
     except RuntimeError as e:
         raise HTTPException(503, str(e))
