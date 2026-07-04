@@ -123,12 +123,16 @@ input:focus,select:focus{border-color:#58a6ff;outline:none}
 
   <div class="section">
     <div class="section-header"><h2>📊 调用日志</h2>
-      <select id="log-alias" onchange="loadLog()" style="font-size:12px;padding:4px 8px">
+      <select id="log-alias" onchange="loadLog();loadChart()" style="font-size:12px;padding:4px 8px">
         <option value="">全部</option>
       </select>
-      <button class="btn" onclick="loadLog()">刷新</button>
+      <select id="log-hours" onchange="loadChart()" style="font-size:12px;padding:4px 8px">
+        <option value="6">6小时</option><option value="12">12小时</option><option value="24" selected>24小时</option><option value="48">48小时</option>
+      </select>
+      <button class="btn" onclick="loadLog();loadChart()">刷新</button>
     </div>
-    <div class="log-box" id="log-box">点击刷新加载</div>
+    <div id="chart-box" style="background:#0d1117;padding:12px;height:140px;display:flex;align-items:flex-end;gap:2px;overflow-x:auto"></div>
+    <div class="log-box" id="log-box" style="max-height:200px">点击刷新加载</div>
   </div>
 </div>
 
@@ -368,6 +372,27 @@ async function loadLog() {
     }).join('\n');
     box.scrollTop = box.scrollHeight;
   } catch(e) { toast('加载日志失败: '+e.message, true); }
+}
+
+async function loadChart() {
+  const alias = document.getElementById('log-alias').value;
+  const hours = document.getElementById('log-hours').value;
+  try {
+    const data = await apiFetch(`/api/stats/log/hourly?alias=${encodeURIComponent(alias)}&hours=${hours}`);
+    const box = document.getElementById('chart-box');
+    if (!data.length) { box.innerHTML = '<span style="color:#8b949e;font-size:11px;align-self:center;margin:auto">暂无数据</span>'; return; }
+    const maxTok = Math.max(...data.map(d=>d.tokens), 1);
+    box.innerHTML = data.map(d => {
+      const h = new Date(d.hour*1000).getHours();
+      const pct = (d.tokens/maxTok*100).toFixed(0);
+      const color = d.fail>0 && d.ok==0 ? '#f85149' : d.ok>0 ? '#3fb950' : '#30363d';
+      return `<div style="flex:1;min-width:14px;display:flex;flex-direction:column;align-items:center;font-size:9px">
+        <span style="color:#8b949e;margin-bottom:2px">${d.tokens>999?(d.tokens/1000).toFixed(0)+'k':d.tokens}</span>
+        <div style="width:100%;background:${color};height:${Math.max(pct,2)}%;border-radius:2px 2px 0 0" title="${new Date(d.hour*1000).toLocaleString()}: ${d.tokens} tok ${d.ok}✅ ${d.fail}❌"></div>
+        <span style="color:#484f58;margin-top:2px">${h}h</span>
+      </div>`;
+    }).join('');
+  } catch(e) { toast('图表加载失败: '+e.message, true); }
 }
 
 function openAddModal() {

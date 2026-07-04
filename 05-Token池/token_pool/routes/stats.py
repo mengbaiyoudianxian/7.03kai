@@ -35,3 +35,9 @@ def overview(x_admin_key: str = Header(default="")):
 def call_log(alias: str = Query(""), limit: int = Query(100), x_admin_key: str = Header(default="")):
     _auth(x_admin_key)
     return get_registry().call_log(alias, limit)
+
+@router.get("/log/hourly")
+def hourly_agg(alias: str = Query(""), hours: int = Query(24), x_admin_key: str = Header(default="")):
+    """P4-1: 按小时聚合 token 消耗，用于图表"""
+    _auth(x_admin_key)
+    return get_registry().hourly_aggregation(alias, hours)

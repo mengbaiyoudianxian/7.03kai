@@ -343,6 +343,20 @@ class Registry:
                 rows = self._conn.execute("SELECT * FROM call_log ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
             return [dict(r) for r in rows]
 
+    def hourly_aggregation(self, alias: str = "", hours: int = 24) -> list[dict]:
+        """P4-1: 按小时聚合 token/成功/失败"""
+        cutoff = time.time() - hours * 3600
+        with self._lock:
+            if alias:
+                rows = self._conn.execute(
+                    "SELECT CAST(ts/3600 AS INTEGER)*3600 as hour, COUNT(*) as calls, SUM(CASE WHEN success THEN 1 ELSE 0 END) as ok, SUM(CASE WHEN success THEN 0 ELSE 1 END) as fail, COALESCE(SUM(total_tokens),0) as tokens FROM call_log WHERE key_alias=? AND ts>=? GROUP BY hour ORDER BY hour",
+                    (alias, cutoff)).fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT CAST(ts/3600 AS INTEGER)*3600 as hour, COUNT(*) as calls, SUM(CASE WHEN success THEN 1 ELSE 0 END) as ok, SUM(CASE WHEN success THEN 0 ELSE 1 END) as fail, COALESCE(SUM(total_tokens),0) as tokens FROM call_log WHERE ts>=? GROUP BY hour ORDER BY hour",
+                    (cutoff,)).fetchall()
+            return [dict(r) for r in rows]
+
     def set_key_value(self, alias: str, api_key: str):
         enc, iv, tag = encrypt(api_key) if api_key else ("", "", "")
         with self._lock:
