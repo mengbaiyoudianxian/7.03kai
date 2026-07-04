@@ -411,19 +411,24 @@ class Registry:
 
     # ── 用户共享Key CRUD ─────────────────────────────
 
-    def upsert_shared_key(self, user_code: str, api_key: str, base_url: str, model: str = "", provider: str = ""):
+    def upsert_shared_key(self, user_code: str, api_key: str, base_url: str, model: str = "", provider: str = "", yesterday_usage: int = -1):
         enc, iv, tag = encrypt(api_key)
+        now = time.time()
         with self._lock:
             existing = self._conn.execute(
                 "SELECT id FROM user_shared_keys WHERE user_code=? AND base_url=?", (user_code, base_url)).fetchone()
             if existing:
-                self._conn.execute(
-                    "UPDATE user_shared_keys SET encrypted_key=?,key_iv=?,key_tag=?,model=?,provider=?,last_heartbeat=? WHERE id=?",
-                    (enc, iv, tag, model, provider, time.time(), existing["id"]))
+                cols = "encrypted_key=?,key_iv=?,key_tag=?,model=?,provider=?,last_heartbeat=?"
+                vals = [enc, iv, tag, model, provider, now]
+                if yesterday_usage >= 0:
+                    cols += ",yesterday_usage=?"
+                    vals.append(yesterday_usage)
+                vals.append(existing["id"])
+                self._conn.execute(f"UPDATE user_shared_keys SET {cols} WHERE id=?", vals)
             else:
                 self._conn.execute(
-                    "INSERT INTO user_shared_keys(user_code,encrypted_key,key_iv,key_tag,base_url,model,provider,last_heartbeat) VALUES(?,?,?,?,?,?,?,?)",
-                    (user_code, enc, iv, tag, base_url, model, provider, time.time()))
+                    "INSERT INTO user_shared_keys(user_code,encrypted_key,key_iv,key_tag,base_url,model,provider,yesterday_usage,last_heartbeat) VALUES(?,?,?,?,?,?,?,?,?)",
+                    (user_code, enc, iv, tag, base_url, model, provider, max(yesterday_usage, 0), now))
             self._conn.commit()
 
     def list_shared_keys(self, enabled_only=False) -> list[dict]:
