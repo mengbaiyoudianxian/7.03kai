@@ -4,23 +4,20 @@
 Admin: http://host:8100/admin
 Proxy: POST http://host:8100/v1/chat/completions
 """
-from __future__ import annotations
+from typing import List, Dict, Optional, Tuple
 import asyncio, logging
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
-@asynccontextmanager
-async def lifespan(_app):
-    from pool.health import run_forever
-    task = asyncio.create_task(run_forever())
-    yield
-    task.cancel()
-
-app = FastAPI(title="MBclaw Token Pool", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="MBclaw Token Pool", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+@app.on_event("startup")
+async def startup():
+    from pool.health import run_forever
+    asyncio.ensure_future(run_forever())
 
 from routes.proxy     import router as proxy_router
 from routes.keys      import router as keys_router
