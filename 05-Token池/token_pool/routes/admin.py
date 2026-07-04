@@ -74,6 +74,7 @@ input:focus,select:focus{border-color:#58a6ff;outline:none}
     <div class="card"><h3>熔断中</h3><div class="val" id="s-cb" style="color:#f85149">-</div></div>
     <div class="card"><h3>总消耗 Token</h3><div class="val" id="s-tok">-</div><div class="sub" id="s-cost">-</div></div>
   </div>
+  <div class="row" id="scores-row" style="grid-template-columns:1fr"></div>
 
   <div class="section">
     <div class="section-header">
@@ -487,7 +488,28 @@ async function probeAll() {
   finally { btn.textContent='🔍 全量检测'; btn.disabled=false; }
 }
 
-function loadAll() { loadStats(); loadKeys(); loadUsers(); loadMiclaw(); }
+function loadAll() { loadStats(); loadKeys(); loadUsers(); loadMiclaw(); loadScores(); }
+
+// P4-2: 评分仪表盘
+async function loadScores() {
+  try {
+    const data = await apiFetch('/api/stats');
+    const metrics = data.metrics_5m || {};
+    const keys = Object.keys(metrics).sort((a,b) => (metrics[b]?.success_rate||0) - (metrics[a]?.success_rate||0)).slice(0,8);
+    if (!keys.length) return;
+    const box = document.getElementById('scores-row');
+    box.style.gridTemplateColumns = `repeat(${Math.min(keys.length,4)},1fr)`;
+    box.innerHTML = keys.map(k => {
+      const m = metrics[k] || {};
+      const rate = ((m.success_rate||0)*100).toFixed(0);
+      const color = rate>80 ? '#3fb950' : rate>50 ? '#d29922' : '#f85149';
+      return `<div class="card"><h3>🏆 ${k.slice(0,18)}</h3>
+        <div class="val" style="font-size:18px;color:${color}">${rate}%</div>
+        <div class="sub">${((m.avg_latency||0)).toFixed(0)}ms | ${((m.rpm||0)).toFixed(0)}rpm</div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
 
 // 启动
 if (!ADMIN_KEY) { promptAdminKey(); } else { loadAll(); setInterval(loadStats, 30000); }
