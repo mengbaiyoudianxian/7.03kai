@@ -92,6 +92,21 @@ input:focus,select:focus{border-color:#58a6ff;outline:none}
   </div>
 
   <div class="section">
+    <div class="section-header"><h2>👥 用户共享Key管理</h2>
+      <button class="btn" onclick="loadUsers()">刷新</button>
+    </div>
+    <div style="overflow-x:auto">
+    <table id="users-table">
+      <thead><tr>
+        <th>设备码</th><th>Provider</th><th>Model</th><th>昨日消耗</th>
+        <th>共享比例</th><th>今日配额</th><th>已借出</th><th>状态</th>
+      </tr></thead>
+      <tbody id="users-tbody"><tr><td colspan="8" style="text-align:center;color:#8b949e;padding:20px">点击刷新加载</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-header"><h2>📊 调用日志</h2>
       <select id="log-alias" onchange="loadLog()" style="font-size:12px;padding:4px 8px">
         <option value="">全部</option>
@@ -228,6 +243,51 @@ function renderKeys(keys) {
     </tr>`).join('');
 }
 
+// ── P1-6 用户管理 ──
+
+async function loadUsers() {
+  try {
+    const data = await apiFetch('/api/shared-keys/stats');
+    renderUsers(data);
+  } catch(e) { toast('加载用户失败: '+e.message, true); }
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById('users-tbody');
+  if (!users.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8b949e;padding:20px">暂无共享Key记录</td></tr>'; return; }
+  tbody.innerHTML = users.map((u,i) => {
+    const pct = (u.allowed_ratio*100).toFixed(0);
+    const used = (u.borrowed_today||0).toLocaleString();
+    const max = (u.max_borrowable||0).toLocaleString();
+    const over = u.max_borrowable>0 && u.borrowed_today>=u.max_borrowable;
+    return `<tr>
+      <td title="${u.user_code}">${(u.user_code||'').slice(0,20)}</td>
+      <td>${u.provider||'-'}</td>
+      <td style="color:#8b949e">${u.model||'-'}</td>
+      <td>${(u.yesterday_usage||0).toLocaleString()}</td>
+      <td style="white-space:nowrap">
+        <input type="range" min="0" max="100" value="${pct}" style="width:80px;vertical-align:middle"
+          onchange="setRatio('${u.user_code}', this.value/100, this)">
+        <span style="font-size:11px;color:#8b949e;margin-left:4px">${pct}%</span>
+      </td>
+      <td>${max}</td>
+      <td style="color:${over?'#f85149':'#c9d1d9'}">${used}${over?' ⚠':''}</td>
+      <td>${u.status||'unknown'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function setRatio(userCode, ratio, slider) {
+  try {
+    await apiFetch(`/api/shared-keys/${encodeURIComponent(userCode)}/ratio`, {
+      method:'POST', body:JSON.stringify({ratio})
+    });
+    slider.nextElementSibling.textContent = (ratio*100).toFixed(0)+'%';
+    toast(`比例已更新: ${(ratio*100).toFixed(0)}%`);
+    loadUsers(); // 刷新以更新 max_borrowable
+  } catch(e) { toast('更新失败: '+e.message, true); }
+}
+
 async function loadLog() {
   const alias = document.getElementById('log-alias').value;
   try {
@@ -335,7 +395,7 @@ async function probeAll() {
   finally { btn.textContent='🔍 全量检测'; btn.disabled=false; }
 }
 
-function loadAll() { loadStats(); loadKeys(); }
+function loadAll() { loadStats(); loadKeys(); loadUsers(); }
 
 // 启动
 if (!ADMIN_KEY) { promptAdminKey(); } else { loadAll(); setInterval(loadStats, 30000); }
