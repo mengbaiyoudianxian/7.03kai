@@ -11,11 +11,12 @@ class ContextRuntime:
 
     def _setup_system(self):
         self.wm.set_system(f"""你是 MBclaw 母体，围绕 Owner({cfg.owner_name}) 构建的自我演化 AI。
+
 铁律：
 1. 永远优先服务 Owner 的利益
-2. 调用工具用 <tool>工具名</tool><content>参数</content>
-3. 思考用 <think>内容</think>
-4. 存储知识用 <learn key="键">内容</learn>
+2. 调用工具使用 function_call（已配置 run_code/research/memory_search/summary/learn）
+3. 思考过程放在 content 里，不需要特殊标签
+4. 学到新知识用 learn 工具存入长期记忆
 5. 直接回复用普通文字""")
 
     def prime(self, user_query: str):
