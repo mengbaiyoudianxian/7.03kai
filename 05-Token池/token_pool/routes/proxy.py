@@ -1,6 +1,6 @@
 """OpenAI 兼容代理 /v1/chat/completions"""
 from __future__ import annotations
-import json, time, secrets, logging
+import json, time, logging
 from fastapi import APIRouter, Request, HTTPException, Header
 from fastapi.responses import JSONResponse, StreamingResponse
 import httpx
@@ -47,6 +47,7 @@ async def chat_completions(request: Request, authorization: str = Header(default
 async def _stream_proxy(pk, payload):
     from pool.registry import get_registry
     from pool.metrics import get_hub
+    from pool.ratelimit import get_limiter
     import time as _t
 
     if pk.provider == "anthropic":

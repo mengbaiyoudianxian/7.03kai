@@ -9,8 +9,7 @@
 内存聚合，重启清零。持久化数据见 registry.call_log。
 """
 import time, threading, math
-from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 

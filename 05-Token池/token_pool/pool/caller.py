@@ -8,7 +8,7 @@
   - 衰减统计 (ttfb + tok/s → MetricsTracker)
 """
 from __future__ import annotations
-import asyncio, time, logging, json, re
+import time, logging, json, re
 import httpx
 from pool.registry import ProviderKey, get_registry
 from pool.ratelimit import get_limiter
@@ -220,7 +220,6 @@ async def call_with_fallback(payload: dict, task: str = "chat", budget: float = 
 
     # ── 故障转移循环 ──
     last_err = ""
-    ttfb_recorded = False
 
     for pk in usable[:max_retries]:
         start = time.time()

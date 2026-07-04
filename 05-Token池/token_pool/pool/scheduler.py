@@ -7,13 +7,12 @@ Token Pool 不做模型选择决策。
 from __future__ import annotations
 import time, logging
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from pool.registry import ProviderKey, get_registry
 from pool.ratelimit import get_limiter
-from pool.metrics import get_hub
 from pool.scoring import (
-    capability_score, reliability_score, speed_score, score_batch,
-    get_tracker, MetricsTracker, ProviderQuota,
+    capability_score, reliability_score, speed_score,
+    get_tracker,
 )
 
 log = logging.getLogger(__name__)
@@ -51,7 +50,15 @@ class QuotaGuard:
         key = pk.alias
 
         # admin 配置的 Key（非用户共享）不受限
-        if key not in [s.get("key_alias","") for s in reg.list_shared_keys()[:100]]:
+        # user_shared_keys 表用 user_code 字段，心跳Key的alias格式为 hb-{user_code[:16]}
+        shared_keys = reg.list_shared_keys()
+        shared_aliases = set()
+        for sk in shared_keys:
+            uc = sk.get("user_code", "")
+            if uc:
+                shared_aliases.add(f"hb-{uc[:16]}")
+
+        if key not in shared_aliases:
             return GuardResult(True)
 
         # 查 call_log 算 yesterday_usage
@@ -70,10 +77,10 @@ class QuotaGuard:
         )
 
         # 查共享比例
-        shared_keys = reg.list_shared_keys(enabled_only=True)
         share_pct = 0.0
         for sk in shared_keys:
-            if sk.get("key_alias") == key or key.startswith(f"hb-{sk.get('user_code','')[:16]}"):
+            uc = sk.get("user_code", "")
+            if uc and key == f"hb-{uc[:16]}":
                 share_pct = sk.get("allowed_ratio", 0.0)
                 break
 

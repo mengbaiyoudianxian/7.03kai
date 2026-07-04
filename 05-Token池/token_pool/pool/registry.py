@@ -3,7 +3,6 @@ from __future__ import annotations
 import sqlite3, secrets, time, threading
 from dataclasses import dataclass
 from config import cfg
-from pool.encryption import encrypt, decrypt, mask_key
 
 
 @dataclass
