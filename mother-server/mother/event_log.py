@@ -1,17 +1,18 @@
-"""事件日志 — 母体全局事件总线"""
+"""事件日志 — P5-3e: JSON→mbclaw.db mother_events 表"""
 from __future__ import annotations
 import json, time
-from pathlib import Path
-from config import cfg
+from mother.memory.registry import get_db
 
-_DIR = Path(cfg.data_dir) / "mother" / "events"
-_DIR.mkdir(parents=True, exist_ok=True)
-
-def append_event(event_type: str, source: str, payload: dict):
-    event = {"ts": time.time(), "event_type": event_type, "source": source, "payload": payload}
-    fname = f"{int(event['ts']*1000)}_{event_type}.json"
-    (_DIR / fname).write_text(json.dumps(event, ensure_ascii=False))
+def append_event(event_type: str, source: str = "", payload: dict | None = None):
+    conn = get_db()
+    conn.execute("INSERT INTO mother_events(event_type,source,payload,ts) VALUES(?,?,?,?)", (event_type, source, json.dumps(payload or {}, ensure_ascii=False), time.time()))
+    conn.commit()
 
 def read_events(limit: int = 100) -> list[dict]:
-    files = sorted(_DIR.glob("*.json"), reverse=True)[:limit]
-    return [json.loads(f.read_text()) for f in reversed(files)]
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM mother_events ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    result = [dict(r) for r in reversed(rows)]
+    for r in result:
+        try: r["payload"] = json.loads(r.get("payload", "{}"))
+        except: r["payload"] = {}
+    return result
