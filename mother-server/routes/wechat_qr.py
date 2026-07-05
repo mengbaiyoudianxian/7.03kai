@@ -1,7 +1,11 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/gateway/wechat", tags=["wechat"])
+
+# 全局存当前二维码（生产环境该用 Redis）
+_current_qr: dict = {}
 
 
 @router.get("/qr", response_class=HTMLResponse)
@@ -13,6 +17,9 @@ async def wechat_qr_page():
     try:
         qr = api.get_qrcode()
         qr_url = qr.get("qrcode_img_content", "")
+        qr_code = qr.get("qrcode", "")
+        _current_qr["code"] = qr_code
+        _current_qr["url"] = qr_url
         qr_gen = _qr.QRCode(border=2, box_size=10)
         qr_gen.add_data(qr_url)
         qr_gen.make(fit=True)
@@ -33,9 +40,9 @@ body{{font:14px system-ui,sans-serif;background:#f5f5f5;display:flex;align-items
 .status{{color:#888;font-size:12px;margin-top:8px}}
 </style></head><body><div class="card">
 <h2>📱 微信扫码登录</h2>
-<p>用手机微信扫描下方二维码</p>
+<p>用手机微信扫描下方二维码，然后点「开始登录」</p>
 {svg}
-<p class="status" id="status">等待扫码...</p>
+<p class="status" id="status">请先扫码再点按钮</p>
 <button class="btn btn-login" onclick="startLogin()">开始登录</button>
 <button class="btn btn-refresh" onclick="location.reload()">刷新二维码</button>
 <div id="result" style="margin-top:12px"></div>
@@ -45,7 +52,7 @@ async function startLogin() {{
     document.getElementById("status").textContent = "正在等待扫码确认...";
     document.getElementById("result").innerHTML = "";
     try {{
-        let r = await fetch("/gateway/wechat/login", {{method:"POST"}});
+        let r = await fetch("/gateway/wechat/login", {{method:"POST",headers:{{"Content-Type":"application/json"}},body:JSON.stringify({{qrcode:"{qr_code}"}})}});
         let d = await r.json();
         if (d.ok) {{
             document.getElementById("status").textContent = "✅ 登录成功！";
@@ -60,15 +67,44 @@ async function startLogin() {{
 </script></body></html>""")
 
 
+class LoginReq(BaseModel):
+    qrcode: str = ""
+
+
 @router.post("/login")
-async def wechat_login():
-    import asyncio
+async def wechat_login(req: LoginReq):
+    from gateway.adapters.wechat_api import WeixinAPI
+    api = WeixinAPI()
+    qrcode = req.qrcode or _current_qr.get("code", "")
+    if not qrcode:
+        return {"ok": False, "error": "没有二维码，请先刷新页面"}
+    # 直接轮询这个 QR 的状态
+    import time
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        resp = api.poll_qr_status(qrcode)
+        status = resp.get("status", "wait")
+        if status == "confirmed":
+            token = resp.get("bot_token", "")
+            bot_id = resp.get("ilink_bot_id", "")
+            base_url = resp.get("baseurl", "https://ilinkai.weixin.qq.com")
+            user_id = resp.get("ilink_user_id", "")
+            if token and bot_id:
+                from gateway.adapters.wechat_auth import _save_account
+                _save_account(bot_id, token, base_url, user_id)
+                return {"ok": True, "account_id": bot_id}
+            return {"ok": False, "error": "确认但缺少凭证"}
+        if status in ("expired", "verify_code_blocked"):
+            return {"ok": False, "error": f"二维码状态: {status}"}
+        time.sleep(1)
+    # 超时，用老方式 fallback
     from gateway.adapters.wechat_auth import login_with_qr
+    import asyncio
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, login_with_qr)
     if result:
         return {"ok": True, "account_id": result["account_id"]}
-    return {"ok": False, "error": "登录失败或超时"}
+    return {"ok": False, "error": "登录超时"}
 
 
 @router.get("/accounts")
