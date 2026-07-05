@@ -54,33 +54,50 @@ class QQBotAdapter(AdapterBase):
         if not self._app_id or not self._secret:
             print("[qqbot] QQ_BOT_APPID/QQ_BOT_SECRET 未配置，跳过")
             return
-        token = await self._get_access_token()
-        if not token:
-            print("[qqbot] failed to get access token")
-            return
-        try:
-            import websockets
-            gw = "wss://api.sgroup.qq.com/websocket/"
+        self._running = True
+        asyncio.create_task(self._reconnect_loop())
+
+    async def _reconnect_loop(self):
+        """自动重连循环"""
+        import websockets
+        while self._running:
             try:
-                r = await self.http.get("https://api.sgroup.qq.com/gateway")
-                gw = r.json().get("url", gw)
-            except Exception:
-                pass
-            self._ws = await websockets.connect(gw, ping_interval=30)
-            hello = json.loads(await self._ws.recv())
-            interval = hello.get("d", {}).get("heartbeat_interval", 45000)
-            self._seq = hello.get("s", 0)
-            await self._ws.send(json.dumps({
-                "op": 2, "d": {"token": f"QQBot {token}", "intents": QQ_INTENTS, "shard": [0, 1]}}))
-            async for raw in self._ws:
-                p = json.loads(raw)
-                if p.get("t") == "READY":
-                    print(f"[qqbot] ready! session={p['d'].get('session_id','')}")
-                    break
-            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(interval))
-            asyncio.create_task(self._listen())
-        except Exception as e:
-            print(f"[qqbot] start failed: {e}")
+                token = await self._get_access_token()
+                if not token:
+                    print("[qqbot] token 获取失败，30s后重试")
+                    await asyncio.sleep(30)
+                    continue
+                gw = "wss://api.sgroup.qq.com/websocket/"
+                try:
+                    r = await self.http.get("https://api.sgroup.qq.com/gateway")
+                    gw = r.json().get("url", gw)
+                except Exception:
+                    pass
+                self._ws = await websockets.connect(gw, ping_interval=30)
+                hello = json.loads(await self._ws.recv())
+                interval = hello.get("d", {}).get("heartbeat_interval", 45000)
+                self._seq = hello.get("s", 0)
+                await self._ws.send(json.dumps({
+                    "op": 2, "d": {"token": f"QQBot {token}", "intents": QQ_INTENTS, "shard": [0, 1]}}))
+                async for raw in self._ws:
+                    p = json.loads(raw)
+                    if p.get("t") == "READY":
+                        print(f"[qqbot] ready! session={p['d'].get('session_id','')}")
+                        break
+                if self._heartbeat_task:
+                    self._heartbeat_task.cancel()
+                self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(interval))
+                await self._listen()
+            except Exception as e:
+                print(f"[qqbot] 连接断开: {e}, 10s后重连...")
+            finally:
+                if self._ws:
+                    try: await self._ws.close()
+                    except Exception: pass
+                if self._heartbeat_task:
+                    self._heartbeat_task.cancel()
+            if self._running:
+                await asyncio.sleep(10)
 
     async def stop(self) -> None:
         if self._heartbeat_task:
