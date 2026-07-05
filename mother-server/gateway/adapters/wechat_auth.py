@@ -69,7 +69,11 @@ def _login_round(api: WeixinAPI) -> dict | None:
             continue
 
         if status == "need_verifycode":
-            pending_code = input("\n输入手机微信显示的数字: ").strip()
+            try:
+                pending_code = input("\n输入手机微信显示的数字: ").strip()
+            except (EOFError, OSError):
+                print("\n⚠️ 需要验证码但无人值守模式，跳过此轮")
+                return None
             continue
 
         if status == "scaned_but_redirect":
