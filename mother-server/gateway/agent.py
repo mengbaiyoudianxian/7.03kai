@@ -33,7 +33,11 @@ async def on_channel_message(msg: StandardMessage):
     reply = await handle_message(msg)
     adapter = get_adapter(msg.channel)
     if adapter:
-        target = msg.meta.get("reply_target", msg.user_id)
+        # 群聊用 group_openid，私聊用 user_id
+        if msg.meta.get("message_type") == "group":
+            target = msg.meta.get("group_openid", "")
+        else:
+            target = msg.meta.get("reply_target", msg.user_id)
         await adapter.send(target, reply, msg.meta)
 
 

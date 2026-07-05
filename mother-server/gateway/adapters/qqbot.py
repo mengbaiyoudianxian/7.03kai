@@ -1,11 +1,19 @@
 """QQ Bot 适配器 — QQ官方Bot API v2 WebSocket
 
 G2: 从 03-母体迁移，删硬编码 Secret，统一走 gateway.agent
+
+Intents 说明:
+  GUILD_MESSAGES        (1<<9)  = 512         — 频道消息
+  GROUP_AND_C2C_EVENT   (1<<25) = 33554432    — C2C私聊消息
+  PUBLIC_GUILD_MESSAGES (1<<30) = 1073741824  — 公域频道消息(含 GROUP_AT_MESSAGE_CREATE)
 """
 from __future__ import annotations
 import asyncio, json, os, time
-import requests
+import httpx
 from gateway import AdapterBase, StandardMessage, register
+
+# 正确的 Intents: 私聊 + 群@ + 频道消息
+QQ_INTENTS = 512 | 33554432 | 1073741824  # = 1107296768
 
 
 class QQBotAdapter(AdapterBase):
@@ -17,13 +25,20 @@ class QQBotAdapter(AdapterBase):
     _ws = None
     _heartbeat_task = None
     _seq: int = 0
+    _http: httpx.AsyncClient | None = None
 
-    def _get_access_token(self) -> str:
+    @property
+    def http(self) -> httpx.AsyncClient:
+        if self._http is None:
+            self._http = httpx.AsyncClient(timeout=httpx.Timeout(15))
+        return self._http
+
+    async def _get_access_token(self) -> str:
         if self._token and time.time() < self._token_expires - 60:
             return self._token
         try:
-            r = requests.post("https://bots.qq.com/app/getAppAccessToken",
-                json={"appId": self._app_id, "clientSecret": self._secret}, timeout=10)
+            r = await self.http.post("https://bots.qq.com/app/getAppAccessToken",
+                json={"appId": self._app_id, "clientSecret": self._secret})
             data = r.json()
             self._token = data.get("access_token", "")
             self._token_expires = time.time() + int(data.get("expires_in", 7200))
@@ -39,7 +54,7 @@ class QQBotAdapter(AdapterBase):
         if not self._app_id or not self._secret:
             print("[qqbot] QQ_BOT_APPID/QQ_BOT_SECRET 未配置，跳过")
             return
-        token = self._get_access_token()
+        token = await self._get_access_token()
         if not token:
             print("[qqbot] failed to get access token")
             return
@@ -47,7 +62,7 @@ class QQBotAdapter(AdapterBase):
             import websockets
             gw = "wss://api.sgroup.qq.com/websocket/"
             try:
-                r = requests.get("https://api.sgroup.qq.com/gateway", timeout=5)
+                r = await self.http.get("https://api.sgroup.qq.com/gateway")
                 gw = r.json().get("url", gw)
             except Exception:
                 pass
@@ -56,7 +71,7 @@ class QQBotAdapter(AdapterBase):
             interval = hello.get("d", {}).get("heartbeat_interval", 45000)
             self._seq = hello.get("s", 0)
             await self._ws.send(json.dumps({
-                "op": 2, "d": {"token": f"QQBot {token}", "intents": 402653184, "shard": [0, 1]}}))
+                "op": 2, "d": {"token": f"QQBot {token}", "intents": QQ_INTENTS, "shard": [0, 1]}}))
             async for raw in self._ws:
                 p = json.loads(raw)
                 if p.get("t") == "READY":
@@ -72,6 +87,9 @@ class QQBotAdapter(AdapterBase):
             self._heartbeat_task.cancel()
         if self._ws:
             try: await self._ws.close()
+            except Exception: pass
+        if self._http:
+            try: await self._http.aclose()
             except Exception: pass
 
     async def _heartbeat_loop(self, interval_ms: int):
@@ -107,32 +125,26 @@ class QQBotAdapter(AdapterBase):
                 print(f"[qqbot] listen error: {e}")
 
     async def _process(self, msg: StandardMessage):
+        """收消息 → 回调 on_channel_message（agent.py 统一处理回复发送）"""
         try:
-            reply = await self._on_message(msg)
-            token = self._get_access_token()
-            if msg.meta.get("message_type") == "private":
-                uid = msg.meta.get("raw_d", {}).get("author", {}).get("id", msg.user_id)
-                requests.post(f"https://api.sgroup.qq.com/v2/users/{uid}/messages",
-                    headers={"Authorization": f"QQBot {token}", "Content-Type": "application/json"},
-                    json={"content": reply[:2000], "msg_type": 0}, timeout=10)
-            else:
-                gid = msg.meta.get("group_openid", "")
-                mid = msg.meta.get("msg_id", "")
-                requests.post(f"https://api.sgroup.qq.com/v2/groups/{gid}/messages",
-                    headers={"Authorization": f"QQBot {token}", "Content-Type": "application/json"},
-                    json={"content": reply[:2000], "msg_type": 0, "msg_id": mid}, timeout=10)
-            print(f"[qqbot] replied to {msg.meta.get('message_type')}")
+            await self._on_message(msg)
         except Exception as e:
-            print(f"[qqbot] reply error: {e}")
+            print(f"[qqbot] process error: {e}")
 
     async def send(self, target: str, message: str, meta: dict | None = None) -> bool:
-        token = self._get_access_token()
+        token = await self._get_access_token()
         msg_type = (meta or {}).get("message_type", "private")
         try:
             path = f"/v2/groups/{target}/messages" if msg_type == "group" else f"/v2/users/{target}/messages"
-            r = requests.post(f"https://api.sgroup.qq.com{path}",
+            r = await self.http.post(f"https://api.sgroup.qq.com{path}",
                 headers={"Authorization": f"QQBot {token}", "Content-Type": "application/json"},
-                json={"content": message[:2000], "msg_type": 0}, timeout=10)
-            return r.status_code == 200
-        except Exception:
+                json={"content": message[:2000], "msg_type": 0})
+            ok = r.status_code == 200
+            if ok:
+                print(f"[qqbot] replied to {msg_type}")
+            else:
+                print(f"[qqbot] send failed: {r.status_code} {r.text[:200]}")
+            return ok
+        except Exception as e:
+            print(f"[qqbot] send error: {e}")
             return False

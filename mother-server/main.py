@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     from mother.evolution.daily import run_forever
     asyncio.ensure_future(run_forever())
     # G4: 启动 Gateway 适配器
-    asyncio.ensure_future(_start_gateway())
+    await _start_gateway()
     yield
 
 
