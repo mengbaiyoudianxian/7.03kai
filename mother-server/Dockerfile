@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 WORKDIR /app
-RUN pip install --no-cache-dir fastapi uvicorn httpx python-dotenv websockets
+RUN pip install --no-cache-dir fastapi uvicorn httpx python-dotenv websockets qrcode
 COPY . .
 RUN mkdir -p /var/lib/mbclaw
 EXPOSE 8000
