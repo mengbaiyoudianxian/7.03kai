@@ -21,15 +21,6 @@ for w in cfg.validate(): log.info("CONFIG: %s", w)
 Path(cfg.data_dir).mkdir(parents=True, exist_ok=True)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    from mother.evolution.daily import run_forever
-    asyncio.ensure_future(run_forever())
-    # G4: 启动 Gateway 适配器
-    await _start_gateway()
-    yield
-
-
 async def _start_gateway():
     """启动所有渠道适配器"""
     from gateway import register
@@ -45,7 +36,16 @@ async def _start_gateway():
     print(f"[gateway] {len(adapters)} adapters started")
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from mother.evolution.daily import run_forever
+    asyncio.ensure_future(run_forever())
+    await _start_gateway()
+    yield
+
+
 app = FastAPI(title="MBclaw Mother", version="2.0.0", lifespan=lifespan)
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 from mother.mother_api import router as mother_router

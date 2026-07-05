@@ -2,9 +2,12 @@
 
 逆向自 @tencent-weixin/openclaw-weixin 2.4.6 源码。
 协议：标准 HTTP + Bearer Token，无加密。
+
+端点修正 (对比 OpenClaw dist/src/api/api.js):
+  getupdates / sendmessage / getconfig / sendtyping / msg/notifystart / msg/notifystop
 """
 from __future__ import annotations
-import json, logging, time
+import json, logging, os, time, random, base64
 import httpx
 
 log = logging.getLogger(__name__)
@@ -13,6 +16,7 @@ ILINK_BASE = "https://ilinkai.weixin.qq.com"
 BOT_TYPE = "3"
 QR_POLL_TIMEOUT = 35
 API_TIMEOUT = 120
+DEFAULT_LONG_POLL_TIMEOUT = 35
 
 
 class WeixinAPI:
@@ -23,10 +27,17 @@ class WeixinAPI:
         self.token = token
 
     def _headers(self) -> dict:
-        h = {"Content-Type": "application/json"}
+        h = {
+            "Content-Type": "application/json",
+            "AuthorizationType": "ilink_bot_token",
+            "X-WECHAT-UIN": base64.b64encode(str(random.randint(0, 2**32 - 1)).encode()).decode(),
+        }
         if self.token:
             h["Authorization"] = f"Bearer {self.token}"
         return h
+
+    def _base_info(self) -> dict:
+        return {"channel_version": "2.4.6", "bot_agent": "MBclaw/2.0"}
 
     # ── 登录 ──────────────────────────────────────────
 
@@ -57,27 +68,30 @@ class WeixinAPI:
     # ── 收消息 ────────────────────────────────────────
 
     def get_updates(self, sync_buf: str = "") -> dict:
-        """长轮询拉取新消息。返回 {msgs, get_updates_buf, longpolling_timeout_ms}"""
-        r = httpx.post(
-            f"{self.base_url}/ilink/bot/get_updates",
-            headers=self._headers(),
-            json={"get_updates_buf": sync_buf},
-            timeout=API_TIMEOUT)
-        r.raise_for_status()
-        return r.json()
+        """长轮询拉取新消息。返回 {ret, msgs, get_updates_buf}"""
+        try:
+            r = httpx.post(
+                f"{self.base_url}/ilink/bot/getupdates",
+                headers=self._headers(),
+                json={"get_updates_buf": sync_buf, "base_info": self._base_info()},
+                timeout=DEFAULT_LONG_POLL_TIMEOUT)
+            r.raise_for_status()
+            return r.json()
+        except httpx.TimeoutException:
+            return {"ret": 0, "msgs": [], "get_updates_buf": sync_buf}
 
     # ── 发消息 ────────────────────────────────────────
 
     def send_text(self, to_user_id: str, text: str) -> dict:
         """发送文本消息"""
         r = httpx.post(
-            f"{self.base_url}/ilink/bot/send_message",
+            f"{self.base_url}/ilink/bot/sendmessage",
             headers=self._headers(),
             json={"msg": {
                 "to_user_id": to_user_id,
                 "message_type": 2,
                 "item_list": [{"type": 1, "text_item": {"text": text[:2000]}}],
-            }},
+            }, "base_info": self._base_info()},
             timeout=API_TIMEOUT)
         r.raise_for_status()
         return r.json()
@@ -85,9 +99,10 @@ class WeixinAPI:
     def send_typing(self, ilink_user_id: str, typing_ticket: str, status: int = 1) -> dict:
         """发送正在输入状态。status: 1=typing, 2=cancel"""
         r = httpx.post(
-            f"{self.base_url}/ilink/bot/send_typing",
+            f"{self.base_url}/ilink/bot/sendtyping",
             headers=self._headers(),
-            json={"ilink_user_id": ilink_user_id, "typing_ticket": typing_ticket, "status": status},
+            json={"ilink_user_id": ilink_user_id, "typing_ticket": typing_ticket, "status": status,
+                  "base_info": self._base_info()},
             timeout=API_TIMEOUT)
         r.raise_for_status()
         return r.json()
@@ -95,9 +110,9 @@ class WeixinAPI:
     def get_config(self) -> dict:
         """获取 Bot 配置（含 typing_ticket）"""
         r = httpx.post(
-            f"{self.base_url}/ilink/bot/get_config",
+            f"{self.base_url}/ilink/bot/getconfig",
             headers=self._headers(),
-            json={},
+            json={"base_info": self._base_info()},
             timeout=API_TIMEOUT)
         r.raise_for_status()
         return r.json()
@@ -105,9 +120,9 @@ class WeixinAPI:
     def notify_start(self) -> dict:
         """通知服务器 channel 启动"""
         r = httpx.post(
-            f"{self.base_url}/ilink/bot/notify_start",
+            f"{self.base_url}/ilink/bot/msg/notifystart",
             headers=self._headers(),
-            json={"base_info": {"bot_agent": "MBclaw/2.0"}},
+            json={"base_info": self._base_info()},
             timeout=API_TIMEOUT)
         r.raise_for_status()
         return r.json()
@@ -115,9 +130,9 @@ class WeixinAPI:
     def notify_stop(self) -> dict:
         """通知服务器 channel 停止"""
         r = httpx.post(
-            f"{self.base_url}/ilink/bot/notify_stop",
+            f"{self.base_url}/ilink/bot/msg/notifystop",
             headers=self._headers(),
-            json={"base_info": {"bot_agent": "MBclaw/2.0"}},
+            json={"base_info": self._base_info()},
             timeout=API_TIMEOUT)
         r.raise_for_status()
         return r.json()

@@ -42,18 +42,21 @@ class WechatAdapter(AdapterBase):
         sync_buf = json.loads(sync_buf_path.read_text()).get("buf", "") if sync_buf_path.exists() else ""
 
         try:
-            api.notify_start()
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, api.notify_start)
         except Exception as e:
             log.warning("notify_start: %s", e)
 
+        loop = asyncio.get_running_loop()
         while self._running:
             try:
-                resp = api.get_updates(sync_buf)
-                if resp.get("errcode") == -14:
-                    log.error("[wechat] session timeout, 需要重新登录")
+                resp = await loop.run_in_executor(None, api.get_updates, sync_buf)
+                ret = resp.get("ret", 0)
+                if ret != 0:
+                    log.error("[wechat] session error ret=%s, 需要重新登录", ret)
                     break
                 new_buf = resp.get("get_updates_buf", "")
-                if new_buf:
+                if new_buf and new_buf != sync_buf:
                     sync_buf = new_buf
                     sync_buf_path.write_text(json.dumps({"buf": sync_buf}))
                 msgs = resp.get("msgs", [])
@@ -66,7 +69,8 @@ class WechatAdapter(AdapterBase):
                 await asyncio.sleep(3)
 
         try:
-            api.notify_stop()
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, api.notify_stop)
         except Exception:
             pass
 
@@ -96,19 +100,22 @@ class WechatAdapter(AdapterBase):
             try:
                 reply = await self._on_message(sm)
                 if reply:
-                    api.send_text(from_user, reply)
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(None, api.send_text, from_user, reply)
                     log.info("[wechat] 回复: %s → %s", from_user, reply[:50])
             except Exception as e:
                 log.error("[wechat] 处理失败: %s", e)
-                api.send_text(from_user, f"处理失败: {e}")
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, api.send_text, from_user, f"处理失败: {e}")
 
     async def send(self, target: str, message: str, meta: dict | None = None) -> bool:
         """主动发消息"""
+        loop = asyncio.get_running_loop()
         for acct in self._accounts:
             try:
                 api = WeixinAPI(base_url=acct.get("base_url", "https://ilinkai.weixin.qq.com"),
                                 token=acct.get("token", ""))
-                api.send_text(target, message)
+                await loop.run_in_executor(None, api.send_text, target, message)
                 return True
             except Exception:
                 continue
