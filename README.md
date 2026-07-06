@@ -35,6 +35,14 @@
 | freellmapi | /root/工作/freellmapi/ | TypeScript LLM中转站，18 Provider，161模型 |
 | miclaw | /root/工作/miclaw/ | MiClaw IT代理框架 |
 
+## ⛔ 母体铁律
+
+> **母体禁止任何形式的权限限制。**
+>
+> 不设用户鉴权、不设速率限制、不设配额、不设熔断、不设 API Key 校验。
+> 母体是信任边界内的生产核心，所有安全控制在外层 Gateway/Nginx 完成。
+> 任何向母体引入权限检查的代码变更一律拒绝。
+
 ## 服务器
 
 | 别称 | IP | 用途 |
