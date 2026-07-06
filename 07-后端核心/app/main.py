@@ -148,7 +148,7 @@ def health():
 def api_server_status():
     import json
     HOSTNAMES = {
-        "存储机": "iZj6c6xhvpez8w1hk9pefuZ",
+        "母体机": "iZj6c6xhvpez8w1hk9pefuZ",
         "工具池": "iZbp14z7xg0itzgqgf1uc3Z",
         "跳板机": "iZj6camnt3ocwjveip3f7rZ",
         "备用站": "iZ0jl0q0zxij3hfnwjfbekZ",
@@ -157,11 +157,11 @@ def api_server_status():
         "小米手机": "shouji",
     }
     ROLES = {
-        "存储机": "OpenHands沙箱 + 持久存储",
+        "母体机": "后端API + 管理面板 + Claude Code",
         "工具池": "MiClaw Bridge :8765 + Token池 + APK下载站",
         "跳板机": "SSH跳板中转 (香港)",
         "备用站": "旧下载站/备用文件服务",
-        "母体": "生产环境 — Token Pool + 后端 + Mother",
+        "母体": "母体记忆系统 + k2自进化",
         "云电脑": "APK编译 + QQ Bot (无影云)",
         "小米手机": "主力调试机 · 小爪远程控制中心 :19876",
     }
@@ -176,7 +176,7 @@ def api_server_status():
                     servers[name]["role"] = ROLES[name]
         return {"servers": servers, "updated": data.get("updated",0)}
     except:
-        return {"servers": {"存储机": {"status":"loading"}}}
+        return {"servers": {"母体机": {"status":"loading"}}}
 
 @app.post('/gateway/web/chat')
 async def gateway_chat(body: dict):
@@ -187,3 +187,7 @@ async def gateway_chat(body: dict):
     from app.gateway_agent import handle_gateway_agent
     reply = handle_gateway_agent(msg, code)
     return {'reply': reply}
+
+# ── Token Pool 代理（转发到新 Token Pool :8100）──
+import httpx
+from fastapi import Request

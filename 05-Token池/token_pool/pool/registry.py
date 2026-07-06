@@ -53,7 +53,7 @@ BUILTIN = [
     ProviderKey(alias="anthropic-sonnet",   provider="anthropic", base_url="https://api.anthropic.com/v1",       model="claude-sonnet-4-6",   cost_per_1k=0.003,  priority=10),
     ProviderKey(alias="deepseek-chat",      provider="deepseek",  base_url="https://api.deepseek.com/v1",        model="deepseek-chat",       cost_per_1k=0.00014,priority=5),
     ProviderKey(alias="qwen-plus",          provider="dashscope", base_url="https://dashscope.aliyuncs.com/compatible-mode/v1", model="qwen-plus", cost_per_1k=0.0004, priority=4),
-    ProviderKey(alias="miclaw-bridge",      provider="miclaw",    base_url="http://100.126.55.0:8765/v1",        model="miclaw",              cost_per_1k=0.0,    priority=3),
+    ProviderKey(alias="miclaw-bridge",      provider="miclaw",    base_url="http://121.199.57.195:8765/v1",        model="miclaw",              cost_per_1k=0.0,    priority=3),
     ProviderKey(alias="local-ollama",       provider="local",     base_url="http://localhost:11434/v1",           model="llama3",              cost_per_1k=0.0,    priority=1),
 ]
 
@@ -144,6 +144,57 @@ class Registry:
             created_at      REAL DEFAULT {now}
         );
         -- MiClaw 账号
+        -- 免费共享Key
+        CREATE TABLE IF NOT EXISTS free_shared_keys (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            code            TEXT UNIQUE NOT NULL,
+            device_code     TEXT NOT NULL,
+            ip_address      TEXT NOT NULL,
+            total_limit     INTEGER NOT NULL DEFAULT 50000,
+            daily_limit     INTEGER NOT NULL DEFAULT 5000,
+            rpm_limit       INTEGER NOT NULL DEFAULT 5,
+            used_total      INTEGER NOT NULL DEFAULT 0,
+            used_today      INTEGER NOT NULL DEFAULT 0,
+            status          TEXT NOT NULL DEFAULT 'active',
+            created_at      REAL NOT NULL DEFAULT {now},
+            last_used       REAL NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_fsk_device ON free_shared_keys(device_code);
+        CREATE INDEX IF NOT EXISTS idx_fsk_ip ON free_shared_keys(ip_address);
+
+        -- 售出Key（用户Key管理、倍率、余额）
+        CREATE TABLE IF NOT EXISTS sold_keys (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id         TEXT NOT NULL,
+            key_alias       TEXT UNIQUE NOT NULL,
+            encrypted_key   TEXT NOT NULL DEFAULT '',
+            key_iv          TEXT NOT NULL DEFAULT '',
+            key_tag         TEXT NOT NULL DEFAULT '',
+            key_multiplier  REAL NOT NULL DEFAULT 1.0,
+            balance         REAL NOT NULL DEFAULT 0.0,
+            total_recharged REAL NOT NULL DEFAULT 0.0,
+            status          TEXT NOT NULL DEFAULT 'active',
+            created_at      REAL NOT NULL DEFAULT {now},
+            last_used       REAL NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS sold_key_models (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            key_alias         TEXT NOT NULL,
+            model_name        TEXT NOT NULL,
+            model_multiplier  REAL NOT NULL DEFAULT 1.0,
+            UNIQUE(key_alias, model_name)
+        );
+        CREATE TABLE IF NOT EXISTS sold_key_usage (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            key_alias     TEXT NOT NULL,
+            model_name    TEXT NOT NULL,
+            tokens_used   INTEGER NOT NULL DEFAULT 0,
+            cost          REAL NOT NULL DEFAULT 0.0,
+            ts            REAL NOT NULL DEFAULT {now}
+        );
+        CREATE INDEX IF NOT EXISTS idx_sku_key ON sold_key_usage(key_alias);
+        CREATE INDEX IF NOT EXISTS idx_sku_ts ON sold_key_usage(ts);
+
         CREATE TABLE IF NOT EXISTS miclaw_accounts (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
             username            TEXT NOT NULL,

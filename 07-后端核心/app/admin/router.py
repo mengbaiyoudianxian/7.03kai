@@ -864,76 +864,75 @@ def api_resolve_feature(fid: str, _: bool = Depends(require_admin)):
             return {"ok": True, "status": item["status"]}
     raise HTTPException(404, "不存在")
 
-# ─── Token池管理 ──────────────────────────────────
-POOL_CACHE = DATA_DIR / "token_pool.json"
+# ─── Token池管理（代理到新 Token Pool :8100）───
+import httpx as _httpx
+TP = "http://127.0.0.1:8100"
+TP_AK = {"X-Admin-Key": "20070520@han"}
 
 @router.get("/api/token-pool")
-def api_token_pool(_: bool = Depends(require_admin)):
-    hb_dir = DATA_DIR / "heartbeat_logs"
-    tokens = []
-    cached = _load(POOL_CACHE, {})
-    if hb_dir.is_dir():
-        for fp in hb_dir.glob("*.json"):
-            try:
-                hb = json.loads(fp.read_text(encoding="utf-8"))
-                keys = hb.get("keys", {})
-                if keys.get("api_key"):
-                    code = hb.get("code", "")
-                    ts = hb.get("last_seen_ts", 0)
-                    key_test = {}
-                    if code in cached:
-                        c = cached[code]
-                        key_test = {
-                            "ok": c.get("status") == "working",
-                            "msg": c.get("error_msg", ""),
-                            "tested_at": c.get("tested_at", 0),
-                            "models": [],
-                        }
-                    tokens.append({
-                        "code": code,
-                        "qq": hb.get("qq", ""),
-                        "model": hb.get("model", ""),
-                        "brand": hb.get("brand", ""),
-                        "api_key": keys.get("api_key", ""),
-                        "api_base_url": keys.get("api_base_url", ""),
-                        "model_name": keys.get("model_name", ""),
-                        "provider_id": keys.get("provider_id", ""),
-                        "online": bool(ts and time.time() - ts < 600),
-                        "key_test": key_test,
-                    })
-            except Exception:
-                pass
-    tokens.sort(key=lambda x: (not x["online"], x["code"]))
-    return {"tokens": tokens, "total": len(tokens)}
+async def api_token_pool(_: bool = Depends(require_admin)):
+    async with _httpx.AsyncClient() as c:
+        # Get provider keys
+        r1 = await c.get(f"{TP}/api/keys", headers=TP_AK)
+        keys = r1.json()
+        tokens = [{
+            "code": k["alias"],
+            "qq": "",
+            "model": k.get("model", ""),
+            "brand": k.get("provider", ""),
+            "api_key": k.get("api_key", "")[:16] + "..." if k.get("api_key") else "",
+            "api_base_url": k.get("base_url", ""),
+            "model_name": k.get("model", ""),
+            "provider_id": k.get("provider", ""),
+            "online": k.get("status") == "working",
+            "key_test": {
+                "ok": k.get("status") == "working",
+                "msg": k.get("last_error", ""),
+                "tested_at": k.get("last_checked", 0),
+                "models": [k.get("model", "")] if k.get("status") == "working" else [],
+                "status_code": 200 if k.get("status") == "working" else 0,
+            }
+        } for k in keys if k.get("has_key")]
+        # Get user shared keys
+        try:
+            r2 = await c.get(f"{TP}/api/shared-keys/stats", headers=TP_AK)
+            shared = r2.json()
+            for s in shared:
+                tokens.append({
+                    "code": s["user_code"],
+                    "qq": "",
+                    "model": s.get("model", ""),
+                    "brand": s.get("provider", ""),
+                    "api_key": "***shared***",
+                    "api_base_url": s.get("base_url", ""),
+                    "model_name": s.get("model", ""),
+                    "provider_id": s.get("provider", ""),
+                    "online": s.get("status") == "working",
+                    "key_test": {
+                        "ok": s.get("status") == "working",
+                        "msg": "",
+                        "tested_at": 0,
+                        "models": [s.get("model", "")],
+                        "status_code": 200 if s.get("status") == "working" else 0,
+                    }
+                })
+        except: pass
+        tokens.sort(key=lambda x: (not x["online"], x["code"]))
+        return {"tokens": tokens, "total": len(tokens)}
 
 @router.post("/api/token-pool/test-key")
-def api_test_token_key(code: str = "", _: bool = Depends(require_admin)):
-    if not code:
-        return {"ok": False, "msg": "missing code"}
-    from app.token_pool import get_pool
-    pool = get_pool()
-    pool._load()
-    for pk in pool.keys:
-        if pk.code == code:
-            ok = pool.test_key(pk)
-            pool._save()
-            return {"ok": ok, "code": code, "msg": "" if ok else pk.error_msg}
-    return {"ok": False, "msg": "not found", "code": code}
+async def api_test_token_key(code: str = "", _: bool = Depends(require_admin)):
+    if not code: return {"ok": False, "msg": "missing code"}
+    async with _httpx.AsyncClient() as c:
+        r = await c.post(f"{TP}/api/keys/{code}/probe", headers=TP_AK)
+        d = r.json()
+        return {"ok": d.get("ok", False), "code": code, "msg": d.get("error", ""), "latency_ms": d.get("latency_ms", 0)}
 
 @router.post("/api/token-pool/test-all")
-def api_test_all_tokens(_: bool = Depends(require_admin)):
-    from app.token_pool import get_pool
-    pool = get_pool()
-    pool._load()
-    total = len(pool.keys)
-    if total == 0:
-        return {"ok": True, "total": 0, "working": 0, "failed": 0}
-    ok = 0
-    for pk in pool.keys:
-        if pool.test_key(pk):
-            ok += 1
-    pool._save()
-    return {"ok": True, "total": total, "working": ok, "failed": total - ok}
+async def api_test_all_tokens(_: bool = Depends(require_admin)):
+    async with _httpx.AsyncClient() as c:
+        r = await c.post(f"{TP}/api/keys/probe_all", headers=TP_AK)
+        return r.json()
 
 
 @router.post("/api/bugs/{bid}/delete")

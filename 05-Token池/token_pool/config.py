@@ -27,7 +27,7 @@ class Config:
     HEALTH_INTERVAL = _i("TP_HEALTH_INTERVAL", 300)        # 每N秒自动检测所有Key
     HEALTH_TIMEOUT  = _i("TP_HEALTH_TIMEOUT", 10)          # 单次检测超时
     # MiClaw桥
-    MICLAW_API    = _e("MICLAW_API_BASE", "http://100.126.55.0:8765")
+    MICLAW_API    = _e("MICLAW_API_BASE", "http://121.199.57.195:8765")
     MICLAW_TOKEN  = _e("MICLAW_TOKEN_KEY", "")
 
     @property

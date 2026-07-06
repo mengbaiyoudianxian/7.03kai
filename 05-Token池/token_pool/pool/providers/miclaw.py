@@ -11,7 +11,7 @@ from pool.registry import get_registry
 log = logging.getLogger(__name__)
 
 # Bridge 地址（默认，可通过环境变量覆盖）
-DEFAULT_BRIDGE_URL = "http://100.126.55.0:8765/v1"
+DEFAULT_BRIDGE_URL = "http://121.199.57.195:8765/v1"
 
 
 class MiClawProvider(BaseProvider):

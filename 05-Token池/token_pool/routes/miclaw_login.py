@@ -9,7 +9,7 @@ from pool.registry import get_registry
 router = APIRouter(prefix="/api/miclaw", tags=["miclaw_login"])
 log = logging.getLogger(__name__)
 
-BRIDGE = "http://100.126.55.0:8765"
+BRIDGE = "http://121.199.57.195:8765"
 
 _sessions: dict[str, dict] = {}
 
@@ -69,7 +69,7 @@ async function doLogin() {
   if (!u || !p) return msg(document.getElementById('msg1'), '请填写账号和密码', false);
   document.getElementById('login-btn').disabled = true;
   try {
-    const r = await fetch('/api/miclaw/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const r = await fetch('api/miclaw/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const d = await r.json();
     if (r.ok) {
       sid = d.session_id;
@@ -87,11 +87,12 @@ async function doVerify() {
   if (!code || code.length < 4) return msg(document.getElementById('msg2'), '请输入验证码', false);
   document.getElementById('verify-btn').disabled = true;
   try {
-    const r = await fetch('/api/miclaw/verify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,code})});
+    const r = await fetch('api/miclaw/verify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,code})});
     const d = await r.json();
     if (r.ok) {
       msg(document.getElementById('msg2'), d.message || '登录成功！', true);
-      setTimeout(() => window.close(), 2000);
+      try { parent.postMessage({type:'miclaw_login_success', account_id: new URLSearchParams(location.search).get('account_id')}, '*'); } catch(e) {}
+      setTimeout(() => { try { window.close(); } catch(e) {} }, 2000);
     } else {
       msg(document.getElementById('msg2'), d.detail || '验证失败', false);
     }

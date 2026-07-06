@@ -16,7 +16,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.on_event("startup")
 async def startup():
     from pool.health import run_forever
+    from pool.miclaw_pool import start_health_monitor
     asyncio.ensure_future(run_forever())
+    asyncio.ensure_future(start_health_monitor())
 
 from routes.proxy      import router as proxy_router
 from routes.keys       import router as keys_router
@@ -26,6 +28,8 @@ from routes.admin      import router as admin_router
 from routes.auth       import router as auth_router
 from routes.user_stats  import router as user_stats_router
 from routes.miclaw_login import router as miclaw_login_router
+from routes.free_keys import router as free_keys_router
+from routes.sold_keys import router as sold_keys_router
 
 app.include_router(proxy_router)
 app.include_router(keys_router)
@@ -35,6 +39,8 @@ app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(user_stats_router)
 app.include_router(miclaw_login_router)
+app.include_router(free_keys_router)
+app.include_router(sold_keys_router)
 
 @app.get("/health")
 def health():
