@@ -291,11 +291,13 @@ async function miclawProbe(id,btn){btn.disabled=true;btn.textContent="检测中.
 async function loadLog(){var b=$("log-box"),a=$("log-alias").value;spin(b);try{var d=await api("/api/stats/log?alias="+encodeURIComponent(a)+"&limit=80");if(!d.length){b.textContent="暂无记录";return}b.textContent=d.map(function(r){var al=r.key_alias||r.alias||"",lat=r.latency_ms||0,tok=r.total_tokens||r.tokens||0,cost=r.cost||0,ok=r.success===1||r.success===true,err=r.error_msg||r.error||"";return"["+new Date(r.ts*1000).toLocaleTimeString("zh-CN",{hour12:false})+"] "+(ok?"OK":"FAIL")+" "+al.padEnd(22)+" "+lat.toFixed(0).padStart(5)+"ms  "+(tok+"").padStart(6)+"tok  $"+cost.toFixed(6)+(err?"  "+err:"")}).join("\n");b.scrollTop=b.scrollHeight}catch(e){toast(""+e.message,1)}}
 async function loadChart(){var b=$("chart-box"),a=$("log-alias").value,h=$("log-hours").value;try{var d=await api("/api/stats/log/hourly?alias="+encodeURIComponent(a)+"&hours="+h);if(!d.length){b.innerHTML="<span style=\"color:var(--text-tertiary);align-self:center;margin:auto;font-size:12px\">暂无数据</span>";return}var mx=Math.max.apply(null,d.map(function(x){return x.tokens}))||1;b.innerHTML=d.map(function(r){var hr=new Date(r.hour*1000).getHours(),p=(r.tokens/mx*100).toFixed(0),c=r.fail>0&&r.ok===0?"var(--red)":r.ok>0?"var(--green)":"var(--border)";return"<div style=\"flex:1;min-width:14px;display:flex;flex-direction:column;align-items:center;font-size:9px\"><span style=\"color:var(--text-tertiary);margin-bottom:2px\">"+(r.tokens>999?(r.tokens/1000).toFixed(0)+"k":r.tokens)+"</span><div style=\"width:100%;background:"+c+";height:"+Math.max(p,2)+"%;border-radius:2px 2px 0 0\" title=\""+new Date(r.hour*1000).toLocaleString()+": "+r.ok+" OK / "+r.fail+" FAIL\"></div><span style=\"color:var(--text-tertiary);margin-top:2px\">"+hr+"h</span></div>"}).join("")}catch(e){toast(""+e.message,1)}}
 
-$("key-modal").addEventListener("click",function(e){if(e.target===this)closeKeyModal()});
-$("sold-modal").addEventListener("click",function(e){if(e.target===this)closeSoldModal()});
-$("confirm-modal").addEventListener("click",function(e){if(e.target===this)closeConfirm()});
-$("miclaw-login-modal").addEventListener("click",function(e){if(e.target===this)closeMiclawModal()});
-document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeKeyModal();closeSoldModal();closeConfirm()}});
+document.addEventListener("DOMContentLoaded",function(){
+  var km=$("key-modal");if(km)km.addEventListener("click",function(e){if(e.target===this)closeKeyModal()});
+  var sm=$("sold-modal");if(sm)sm.addEventListener("click",function(e){if(e.target===this)closeSoldModal()});
+  var cm=$("confirm-modal");if(cm)cm.addEventListener("click",function(e){if(e.target===this)closeConfirm()});
+  var mm=$("miclaw-login-modal");if(mm)mm.addEventListener("click",function(e){if(e.target===this)closeMiclawModal()});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeKeyModal();closeSoldModal();closeConfirm()}});
+});
 
 
 /* ⛔ LOCK: MiClaw 登录成功监听 — 禁止修改 ⛔ */
