@@ -5,7 +5,7 @@
 from __future__ import annotations
 import json, time, logging
 from pathlib import Path
-from gateway.adapters.wechat_api import WeixinAPI, ILINK_BASE
+from .wechat_api import WeixinAPI, ILINK_BASE
 
 log = logging.getLogger(__name__)
 

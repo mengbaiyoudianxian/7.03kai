@@ -5,9 +5,20 @@ W4: 自动重连 — session 过期自动重试，60s 退避
 """
 from __future__ import annotations
 import asyncio, json, logging
-from gateway import AdapterBase, StandardMessage, register
-from gateway.adapters.wechat_api import WeixinAPI
-from gateway.adapters.wechat_auth import load_accounts, login_with_qr, STATE_DIR
+from . import AdapterBase
+from dataclasses import dataclass, field
+import time
+
+@dataclass
+class StandardMessage:
+    channel: str = "wechat"
+    user_id: str = ""
+    content: str = ""
+    meta: dict = field(default_factory=dict)
+    timestamp: float = field(default_factory=time.time)
+
+from .wechat_api import WeixinAPI
+from .wechat_auth import load_accounts, login_with_qr, STATE_DIR
 
 log = logging.getLogger(__name__)
 
