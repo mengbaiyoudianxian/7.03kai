@@ -309,7 +309,7 @@ window.addEventListener('message', function(e){
 /* ⛔ END LOCK ⛔ */
 function refresh(){var t=document.querySelector(".page.active").id.replace("page-","");if(t==="overview")loadOverview();else if(t==="keys")loadKeys();else if(t==="sold")loadSoldKeys();else if(t==="free")loadFreeKeys();else if(t==="users")loadUsers();else if(t==="miclaw"){loadMiclaw();loadPoolStats()}else if(t==="logs"){loadLog();loadChart()}}
 
-if(AK){$("login-screen").style.display="none";$("app-main").style.display="block";loadOverview();setInterval(function(){if($("page-overview").classList.contains("active"))loadOverview()},30000)}
+document.addEventListener("DOMContentLoaded",function(){if(AK){$("login-screen").style.display="none";$("app-main").style.display="block";loadOverview();setInterval(function(){if($("page-overview").classList.contains("active"))loadOverview()},30000)}})
 </script>
 
 <!-- ⛔ LOCK: MiClaw 登录模态框 — 禁止修改 ⛔ -->
