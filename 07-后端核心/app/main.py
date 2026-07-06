@@ -200,6 +200,15 @@ def api_server_status():
         return {"servers": {"母体机": {"status":"loading"}}}
 
 # ── 微信扫码登录 ──
+@app.get("/gateway/wechat/link")
+async def wechat_link():
+    from app.gateway.adapters.wechat_api import WeixinAPI
+    api = WeixinAPI()
+    qr = api.get_qrcode()
+    qr_code = qr.get("qrcode", "")
+    link = f"https://liteapp.weixin.qq.com/q/7GiQu1?qrcode={qr_code}&bot_type=3"
+    return {"link": link, "qrcode": qr_code}
+
 @app.get("/gateway/wechat/qr", response_class=HTMLResponse)
 async def wechat_qr_page():
     from app.gateway.adapters.wechat_api import WeixinAPI
