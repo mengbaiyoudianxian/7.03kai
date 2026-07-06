@@ -221,15 +221,22 @@ async def wechat_qr_page():
 <html><head><meta charset="UTF-8"><title>微信扫码登录</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>body{{font:14px system-ui,sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}.card{{background:#fff;border-radius:12px;padding:24px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.1);max-width:400px}}.card svg{{max-width:280px;height:auto}}.btn{{display:inline-block;margin:12px 4px;padding:10px 24px;border:none;border-radius:6px;cursor:pointer;font:inherit;font-weight:600}}.btn-login{{background:#07c160;color:#fff}}.btn-refresh{{background:#eee;color:#333}}.status{{color:#888;font-size:12px;margin-top:8px}}</style></head><body><div class="card">
-<h2>📱 微信扫码登录</h2><p>用手机微信扫描下方二维码，然后点「开始登录」</p>
+<h2>📱 微信扫码登录</h2><p>用手机微信扫描下方二维码，扫码后自动登录</p>
 {svg}
-<p class="status" id="status">请先扫码再点按钮</p>
-<button class="btn btn-login" onclick="startLogin()">开始登录</button>
+<p class="status" id="pollStatus">等待扫码...</p>
+<button class="btn btn-login" id="loginBtn" style="display:none" onclick="startLogin()">开始登录</button>
 <button class="btn btn-refresh" onclick="location.reload()">刷新二维码</button>
 <div id="result" style="margin-top:12px"></div></div>
 <script>
 async function startLogin(){{document.getElementById("status").textContent="正在等待扫码确认...";document.getElementById("result").innerHTML="";try{{let r=await fetch("/gateway/wechat/login",{{method:"POST",headers:{{"Content-Type":"application/json"}},body:JSON.stringify({{qrcode:"{qr_code}"}})}});let d=await r.json();if(d.ok){{document.getElementById("status").textContent="✅ 登录成功！";document.getElementById("result").innerHTML="<b>账号: "+d.account_id+"</b><br>重启后生效"}}else{{document.getElementById("status").textContent="❌ "+(d.error||"失败")}}}}catch(e){{document.getElementById("status").textContent="❌ "+e}}}}
 </script></body></html>""")
+
+@app.get("/gateway/wechat/poll")
+async def wechat_poll(qrcode: str = ""):
+    from app.gateway.adapters.wechat_api import WeixinAPI
+    api = WeixinAPI()
+    resp = api.poll_qr_status(qrcode)
+    return {"status": resp.get("status", "wait"), "account_id": resp.get("ilink_bot_id", "")}
 
 @app.post("/gateway/wechat/login")
 async def wechat_login(body: dict):
