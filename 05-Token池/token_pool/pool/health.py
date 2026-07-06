@@ -53,6 +53,32 @@ async def check_all():
             rl.set_cooldown(pk.alias, pk.provider, pk.model, status_code=429)
         log.info("  [%s] %s %s %.0fms %s", pk.alias, "✅" if ok else "❌", status, latency, err[:60] if err else "")
 
+
+# ── User shared keys hourly probe ──
+async def _probe_user_keys():
+    """每小时自动检测所有用户共享Key"""
+    import httpx as _httpx
+    while True:
+        await asyncio.sleep(3600)  # 每小时
+        try:
+            reg = get_registry()
+            keys = reg._conn.execute("SELECT user_code, encrypted_key, key_iv, key_tag, base_url FROM user_shared_keys").fetchall()
+            for k in keys:
+                try:
+                    from pool.encryption import decrypt
+                    api_key = decrypt(k["encrypted_key"], k["key_iv"], k["key_tag"])
+                    url = f"{k['base_url'].rstrip('/')}/models"
+                    async with _httpx.AsyncClient(timeout=10) as c:
+                        r = await c.get(url, headers={"Authorization": f"Bearer {api_key}"})
+                    status = "working" if r.status_code == 200 else "failed"
+                except:
+                    status = "failed"
+                reg._conn.execute("UPDATE user_shared_keys SET status=?, last_heartbeat=? WHERE user_code=?", (status, time.time(), k["user_code"]))
+            reg._conn.commit()
+            logging.getLogger("pool.health").info(f"User keys probe done: {len(keys)} checked")
+        except Exception as e:
+            logging.getLogger("pool.health").error(f"User key probe error: {e}")
+
 async def run_forever():
     """后台无限循环"""
     while True:
