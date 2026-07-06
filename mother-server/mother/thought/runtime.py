@@ -165,8 +165,10 @@ class ThoughtRuntime:
 
             if tool_name in ("run_code", "research", "memory_search", "summary", "shell"):
                 from mother import workers
+                import inspect
                 worker_func = getattr(workers, TOOL_MAP[tool_name][0])
-                kwargs = {k: v for k, v in args.items() if k not in ("", None)}
+                valid_params = set(inspect.signature(worker_func).parameters)
+                kwargs = {k: v for k, v in args.items() if k in valid_params}
                 result = worker_func(**kwargs)
                 return str(result) if result else "执行完成（无输出）"
 
