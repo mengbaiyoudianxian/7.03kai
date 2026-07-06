@@ -24,7 +24,7 @@
 | 监控 | 无 | 5分钟滑动窗口RPM/成功率/延迟 + call_log持久化 |
 | 后台探活 | `test_key()`手动触发 | `health.py` 异步定时全量检测 |
 | 流式 | 无故障转移 | 只选第一个Key（未实现故障转移） |
-| 部署 | **正在母体机嵌入运行** | **未部署** |
+| 部署 | **正在存储机嵌入运行** | **未部署** |
 
 ### 1.2 旧版关键Bug
 
@@ -65,7 +65,7 @@ pk = min(miclaw, key=lambda x: x.usage_count)  # ← miclaw 未定义！
 ### 当前两层架构（问题在里面）
 
 ```
-APK → /bridge/miclaw/v1 → 母体机 nginx → 工具池 :8765 → 小米API
+APK → /bridge/miclaw/v1 → 存储机 nginx → 工具池 :8765 → 小米API
      ↑ bridge_manager管理实例          ↑ Rust binary独立项目
 ```
 

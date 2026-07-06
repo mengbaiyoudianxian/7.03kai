@@ -15,9 +15,9 @@ try:
             except: pass
     cpu = subprocess.run("top -bn1|grep Cpu|awk '{print $2}'",shell=True,capture_output=True,text=True).stdout.strip()[:4]
     up = subprocess.run("uptime -p",shell=True,capture_output=True,text=True).stdout.strip().replace("up ","")
-    d["母体机"] = {"status":"online","ip":"47.83.2.188","mem_total":int(mem[1]),"mem_used":int(mem[2]),
+    d["存储机"] = {"status":"online","ip":"47.83.2.188","mem_total":int(mem[1]),"mem_used":int(mem[2]),
         "disk_total":disk[1],"disk_used":disk[2],"disk_pct":disk[4],"net_rx":rx,"net_tx":tx,"cpu":cpu,"uptime":up}
-except: d["母体机"] = {"status":"error"}
+except: d["存储机"] = {"status":"error"}
 
 # Tailscale nodes
 try:

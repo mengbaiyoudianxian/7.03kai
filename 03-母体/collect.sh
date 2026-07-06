@@ -3,7 +3,7 @@ OUT=/var/lib/mbclaw/server_status.json
 echo '{' > $OUT
 
 # 本机
-echo '  "母体机": {' >> $OUT
+echo '  "存储机": {' >> $OUT
 mem=( $(free -m | head -2 | tail -1) )
 disk=( $(df -h / | tail -1) )
 rx=0; tx=0

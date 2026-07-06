@@ -12,7 +12,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│ 母体机 47.83.2.188 :80 (nginx → :8000 FastAPI)                  │
+│ 存储机 47.83.2.188 :80 (nginx → :8000 FastAPI)                  │
 │ ├── admin/router.py      管理面板 API                            │
 │ ├── admin/bridge_manager.py  MiClaw 实例管理                     │
 │ ├── app/token_pool.py    旧 Token 池（153行，运行中）             │

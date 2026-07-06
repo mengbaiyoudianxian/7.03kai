@@ -4,11 +4,11 @@ import json, subprocess, time, socket
 
 d = {}
 KNOWN = {
-    "母体机": {"ip": "47.83.2.188", "hostname": "iZj6c6xhvpez8w1hk9pefuZ", "role": "后端API + 管理面板 + Claude Code", "public_ip": "47.83.2.188"},
+    "存储机": {"ip": "47.83.2.188", "hostname": "iZj6c6xhvpez8w1hk9pefuZ", "role": "OpenHands沙箱 + 持久存储", "public_ip": "47.83.2.188"},
     "工具池": {"ip": "121.199.57.195", "hostname": "iZbp14z7xg0itzgqgf1uc3Z", "role": "MiClaw Bridge :8765 + Token池 + APK下载站", "public_ip": "121.199.57.195"},
     "跳板机": {"ip": "47.238.225.160", "hostname": "iZj6camnt3ocwjveip3f7rZ", "role": "SSH跳板中转 (香港)", "public_ip": "47.238.225.160"},
     "备用站": {"ip": "8.130.42.188", "hostname": "iZ0jl0q0zxij3hfnwjfbekZ", "role": "旧下载站/备用文件服务", "public_ip": "8.130.42.188"},
-    "母体": {"ip": "8.147.69.152", "hostname": "iZ0jl3aqsblqwrkyxt46tvZ", "role": "母体记忆系统 + k2自进化", "public_ip": "8.147.69.152"},
+    "母体": {"ip": "8.147.69.152", "hostname": "iZ0jl3aqsblqwrkyxt46tvZ", "role": "生产环境 — Token Pool + 后端 + Mother", "public_ip": "8.147.69.152"},
     "云电脑": {"ip": "100.100.98.76", "hostname": "", "role": "APK编译 + QQ Bot (无影云)", "public_ip": "100.100.98.76"},
     "小米手机": {"ip": "100.66.144.87", "hostname": "shouji", "role": "主力调试机 · 小爪远程控制中心 :19876", "public_ip": "100.66.144.87"},
 }
@@ -25,11 +25,11 @@ try:
             except: pass
     cpu = subprocess.run("top -bn1|grep Cpu|awk '{print $2}'",shell=True,capture_output=True,text=True).stdout.strip()[:4]
     up = subprocess.run("uptime -p",shell=True,capture_output=True,text=True).stdout.strip().replace("up ","")
-    d["母体机"] = {"status":"online","ip":"47.83.2.188","hostname":socket.gethostname(),"role":"后端API + 管理面板 + Claude Code","public_ip":"47.83.2.188",
+    d["存储机"] = {"status":"online","ip":"47.83.2.188","hostname":socket.gethostname(),"role":"OpenHands沙箱 + 持久存储","public_ip":"47.83.2.188",
         "mem_total":int(mem[1]),"mem_used":int(mem[2]),
         "disk_total":disk[1],"disk_used":disk[2],"disk_pct":disk[4],
         "net_rx":rx,"net_tx":tx,"cpu":cpu,"uptime":up}
-except: d["母体机"] = {"status":"error","ip":"47.83.2.188","hostname":socket.gethostname()}
+except: d["存储机"] = {"status":"error","ip":"47.83.2.188","hostname":socket.gethostname()}
 
 # Tailscale nodes - check online status, use known hostnames
 try:

@@ -47,7 +47,7 @@ def get_remote(ip, name):
         return {"status":"offline","ip":ip}
 
 def collect():
-    data = {"母体机": get_local(), "updated": time.time()}
+    data = {"存储机": get_local(), "updated": time.time()}
     for name, ip in SERVERS.items():
         data[name] = get_remote(ip, name)
     out = "/var/lib/mbclaw/server_status.json"

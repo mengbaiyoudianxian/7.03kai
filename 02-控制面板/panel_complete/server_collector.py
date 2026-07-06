@@ -12,17 +12,17 @@ SERVERS = {
 }
 
 ROLES = {
-    "母体机": "后端API + 管理面板 + Claude Code",
+    "存储机": "OpenHands沙箱 + 持久存储",
     "工具池": "MiClaw Bridge :8765 + Token池 + APK下载站",
     "跳板机": "SSH跳板中转 (香港)",
     "备用站": "旧下载站/备用文件服务",
-    "母体": "母体记忆系统 + k2自进化",
+    "母体": "生产环境 — Token Pool + 后端 + Mother",
     "云电脑": "APK编译 + QQ Bot (无影云)",
     "小米手机": "主力调试机 · 小爪远程控制中心 :19876",
 }
 
 KNOWN_HOSTNAMES = {
-    "母体机": "iZj6c6xhvpez8w1hk9pefuZ",
+    "存储机": "iZj6c6xhvpez8w1hk9pefuZ",
     "工具池": "iZbp14z7xg0itzgqgf1uc3Z",
     "跳板机": "iZj6camnt3ocwjveip3f7rZ",
     "备用站": "iZ0jl0q0zxij3hfnwjfbekZ",
@@ -80,9 +80,9 @@ def get_remote(ip, name):
         return {"status":"offline","ip":ip}
 
 def collect():
-    data = {"母体机": get_local(), "updated": time.time()}
-    data["母体机"]["role"] = ROLES.get("母体机", "")
-    data["母体机"]["public_ip"] = "47.83.2.188"
+    data = {"存储机": get_local(), "updated": time.time()}
+    data["存储机"]["role"] = ROLES.get("存储机", "")
+    data["存储机"]["public_ip"] = "47.83.2.188"
     for name, ip in SERVERS.items():
         data[name] = get_remote(ip, name)
         if name in ROLES:
@@ -93,8 +93,8 @@ def collect():
         if "hostname" not in data[name]:
             data[name]["hostname"] = KNOWN_HOSTNAMES.get(name, "")
     # Ensure local has hostname too
-    if "hostname" not in data["母体机"]:
-        data["母体机"]["hostname"] = KNOWN_HOSTNAMES.get("母体机", socket.gethostname())
+    if "hostname" not in data["存储机"]:
+        data["存储机"]["hostname"] = KNOWN_HOSTNAMES.get("存储机", socket.gethostname())
     out = "/var/lib/mbclaw/server_status.json"
     json.dump(data, open(out,"w"), ensure_ascii=False, indent=2)
     print(f"Written to {out}")

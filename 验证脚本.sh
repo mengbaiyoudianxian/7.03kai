@@ -30,7 +30,7 @@ for file in \
     "02-控制面板/miclaw_login.html" \
     "08-Nginx配置/工具池/miclaw-auth.conf" \
     "08-Nginx配置/工具池/miclaw-proxy.conf" \
-    "08-Nginx配置/母体机/miclaw_proxy.conf" \
+    "08-Nginx配置/存储机/miclaw_proxy.conf" \
     "10-工具池/miclaw_bridge_src/src-tauri/src/bin/miclaw_api_bridge_desktop.rs"
 do
     if [ -f "$file" ]; then
