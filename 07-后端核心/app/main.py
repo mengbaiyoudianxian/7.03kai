@@ -203,7 +203,15 @@ async def wechat_link():
     qr = api.get_qrcode()
     qr_code = qr.get("qrcode", "")
     link = f"https://liteapp.weixin.qq.com/q/7GiQu1?qrcode={qr_code}&bot_type=3"
-    return {"link": link, "qrcode": qr_code}
+    html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>微信一键登录</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{{font:14px system-ui,sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}.card{{background:#fff;border-radius:12px;padding:24px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.1);max-width:420px}}a.btn{{display:inline-block;margin:12px 0;padding:12px 28px;background:#07c160;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px}}.status{{color:#888;margin-top:12px;font-size:13px}}</style></head><body>
+<div class="card"><h2>📱 微信Bot登录</h2><p>点击下方按钮在微信中打开并确认授权</p>
+<a class="btn" href="{link}" target="_blank">在微信中打开登录</a>
+<p style="font-size:12px;color:#aaa;word-break:break-all">{link}</p>
+<p class="status" id="s">等待授权...</p></div>
+<script>var pt=setInterval(function(){{fetch("/gateway/wechat/poll?qrcode="+encodeURIComponent("{qr_code}")).then(r=>r.json()).then(d=>{{var s=document.getElementById("s");if(d.status==="scanned")s.textContent="📱 已扫码，请确认";if(d.status==="confirmed"&&d.account_id){{clearInterval(pt);s.textContent="正在登录...";fetch("/gateway/wechat/login",{{method:"POST",headers:{{"Content-Type":"application/json"}},body:JSON.stringify({{qrcode:"{qr_code}",bot_id:d.account_id}})}}).then(r=>r.json()).then(d=>{{if(d.ok)s.textContent="✅ 登录成功！账号: "+d.account_id+"，10秒后生效";else s.textContent="❌ "+(d.error||"失败")}})}}}}).catch(()=>{{}})}},3000)</script></body></html>"""
+    return HTMLResponse(html)
 
 @app.get("/gateway/wechat/qr", response_class=HTMLResponse)
 async def wechat_qr_page():
