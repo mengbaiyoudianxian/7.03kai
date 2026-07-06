@@ -244,7 +244,7 @@ async function runAiCmd(){var c=$("ai-cmd").value.trim();if(!c)return;var b=$("b
 
 // ── Users / Utopia ──
 function userStatusBadge(s){if(s==="working")return"<span class=\"status status-ok\">可用</span>";if(s==="failed")return"<span class=\"status status-err\">不可用</span>";return"<span class=\"status status-warn\">未知</span>"}
-async function loadUsers(){var t=$("users-tbody");spin(t);try{var d=await api("/api/shared-keys/stats");if(!d.length){none(t,"暂无");return}t.innerHTML=d.map(function(u){var p=(u.allowed_ratio*100).toFixed(0),used=(u.borrowed_today||0).toLocaleString(),max=(u.max_borrowable||0).toLocaleString(),over=u.max_borrowable>0&&u.borrowed_today>=u.max_borrowable;return"<tr><td title=\""+u.user_code+"\" style=\"font-family:var(--mono);font-size:12px\">"+(u.user_code||"").slice(0,20)+"</td><td style=\"color:var(--text-secondary)\">"+(u.provider||"-")+" / "+(u.model||"-")+"</td><td>"+(u.yesterday_usage||0).toLocaleString()+"</td><td><input type=\"range\" min=\"0\" max=\"100\" value=\""+p+"\" style=\"width:100px\"> "+p+"%</td><td>"+max+"</td><td style=\"color:"+(over?"var(--red)":"var(--text)")+"\">"+used+(over?" !":"")+"</td><td>"+userStatusBadge(u.status)+"</td><td><button type=\"button\" class=\"btn-sm\" onclick=\"probeUser('+u.user_code+',this)\">检测</button></td></tr>"}).join("")}catch(e){toast(""+e.message,1);none(t,"加载失败")}}
+async function loadUsers(){var t=$("users-tbody");spin(t);try{var d=await api("/api/shared-keys/stats");if(!d.length){none(t,"暂无");return}t.innerHTML=d.map(function(u){var p=(u.allowed_ratio*100).toFixed(0),used=(u.borrowed_today||0).toLocaleString(),max=(u.max_borrowable||0).toLocaleString(),over=u.max_borrowable>0&&u.borrowed_today>=u.max_borrowable;return"<tr><td title=\""+u.user_code+"\" style=\"font-family:var(--mono);font-size:12px\">"+(u.user_code||"").slice(0,20)+"</td><td style=\"color:var(--text-secondary)\">"+(u.provider||"-")+" / "+(u.model||"-")+"</td><td>"+(u.yesterday_usage||0).toLocaleString()+"</td><td><input type=\"range\" min=\"0\" max=\"100\" value=\""+p+"\" style=\"width:100px\"> "+p+"%</td><td>"+max+"</td><td style=\"color:"+(over?"var(--red)":"var(--text)")+"\">"+used+(over?" !":"")+"</td><td>"+userStatusBadge(u.status)+"</td><td><button type=\"button\" class=\"btn-sm\" onclick=\"probeUser('\"+u.user_code+\"',this)\">检测</button></td></tr>"}).join("")}catch(e){toast(""+e.message,1);none(t,"加载失败")}}
 async function probeAllUsers(){var b=$("btn-probe-users");b.disabled=true;b.textContent="检测中...";try{var r=await api("/api/shared-keys/probe-all",{method:"POST"});var ok=r.results.filter(function(x){return x.ok}).length;toast("完成: "+ok+"/"+r.results.length+" 可用");loadUsers()}catch(e){toast(""+e.message,1)}finally{b.disabled=false;b.textContent="一键检测全部"}}
 async function probeUser(c,b){b.disabled=true;b.textContent="检测中...";try{var r=await api("/api/shared-keys/"+c+"/probe",{method:"POST"});toast(r.ok?"可用 "+(r.latency_ms||0).toFixed(0)+"ms":"不可用: "+r.error,!r.ok);loadUsers()}catch(e){toast(""+e.message,1)}finally{b.disabled=false;b.textContent="检测"}}
 
@@ -262,7 +262,7 @@ async function loadPoolStats(){
       '<div class="stat-card"><div class="label">今日调用</div><div class="value">'+(d.total_calls_today||0).toLocaleString()+'</div></div>'+
       '<div class="stat-card"><div class="label">Bridge状态</div><div class="value" style="font-size:18px">'+(d.bridge_ok?'\u2705':'\u274C')+'</div></div>'+
       '<div class="stat-card"><div class="label">成功率</div><div class="value">'+((d.total_success+d.total_fail)>0?(d.total_success/(d.total_success+d.total_fail)*100).toFixed(0):'-')+'%</div></div>';
-  }catch(e){}
+  }catch(e){toast("池状态加载失败: "+e.message,1)}
 }
 async function poolLoginAll(){
   var b=$("btn-login-all");b.disabled=true;b.textContent="登录中...";
@@ -305,7 +305,7 @@ document.addEventListener("DOMContentLoaded",function(){
   var sm=$("sold-modal");if(sm)sm.addEventListener("click",function(e){if(e.target===this)closeSoldModal()});
   var cm=$("confirm-modal");if(cm)cm.addEventListener("click",function(e){if(e.target===this)closeConfirm()});
   var mm=$("miclaw-login-modal");if(mm)mm.addEventListener("click",function(e){if(e.target===this)closeMiclawModal()});
-  document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeKeyModal();closeSoldModal();closeConfirm()}});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeKeyModal();closeSoldModal();closeConfirm();closeMiclawModal()}});
 });
 
 
