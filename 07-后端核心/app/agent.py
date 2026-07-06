@@ -165,6 +165,17 @@ class MotherAgent:
     def __init__(self):
         self.sessions = {}
 
+    async def enqueue(self, msg) -> bool:
+        """消息入队（同步实现，始终返回True）"""
+        return True
+
+    async def process_one(self, msg) -> str:
+        """处理单条消息"""
+        content = msg.content if hasattr(msg, 'content') else str(msg)
+        uid = msg.user_id if hasattr(msg, 'user_id') else 'unknown'
+        channel = msg.channel if hasattr(msg, 'channel') else 'unknown'
+        return self.send(uid, content, channel)
+
     def send(self, user_id: str, message: str, channel: str = 'unknown') -> str:
         """处理一条消息并返回回复"""
         from app.llm import LLMClient
@@ -172,7 +183,7 @@ class MotherAgent:
         try:
             llm = LLMClient()
             provider = os.environ.get('MBCLAW_PROVIDER', 'openai')
-            model = os.environ.get('MBCLAW_MODEL', 'gpt-4o')
+            model = os.environ.get('MBCLAW_MODEL', '')
             # 简单的单轮调用
             msgs = [{"role": "user", "content": message}]
             reply = llm.chat(msgs, model=model, provider=provider)
