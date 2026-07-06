@@ -187,7 +187,3 @@ async def gateway_chat(body: dict):
     from app.gateway_agent import handle_gateway_agent
     reply = handle_gateway_agent(msg, code)
     return {'reply': reply}
-
-# ── Token Pool 代理（转发到新 Token Pool :8100）──
-import httpx
-from fastapi import Request

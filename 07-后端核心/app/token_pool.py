@@ -84,14 +84,21 @@ class TokenPool:
         json.dump(cache, open(POOL_FILE, "w"), ensure_ascii=False, indent=2)
 
     def test_key(self, pk: PoolKey) -> bool:
-        """测试单个Key是否可用"""
-        import urllib.request
+        """测试单个Key是否可用 — 真实对话测试"""
+        import urllib.request, json
         try:
-            url = f"{pk.base_url.rstrip('/')}/models"
-            req = urllib.request.Request(url, headers={"Authorization": f"Bearer {pk.api_key}"})
-            resp = urllib.request.urlopen(req, timeout=10)
-            pk.status = "working" if resp.status == 200 else "failed"
-            pk.error_msg = "" if resp.status == 200 else f"HTTP {resp.status}"
+            url = f"{pk.base_url.rstrip('/')}/chat/completions"
+            body = json.dumps({"model": pk.model or "gpt-3.5", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5}).encode()
+            req = urllib.request.Request(url, data=body, headers={"Authorization": f"Bearer {pk.api_key}", "Content-Type": "application/json"})
+            resp = urllib.request.urlopen(req, timeout=15)
+            data = json.loads(resp.read())
+            reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if reply and resp.status == 200:
+                pk.status = "working"
+                pk.error_msg = ""
+            else:
+                pk.status = "failed"
+                pk.error_msg = "空回复" if resp.status == 200 else f"HTTP {resp.status}"
         except Exception as e:
             pk.status = "failed"
             pk.error_msg = str(e)[:100]

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>MiClaw 登录</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font:14px system-ui,sans-serif;background:#0d1117;color:#c9d1d9;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:28px 24px;width:100%;max-width:380px}
+.card h1{font-size:20px;margin-bottom:4px;color:#f0f6fc}
+.card p.sub{color:#8b949e;font-size:13px;margin-bottom:24px}
+label{display:block;margin-bottom:14px}
+label span{display:block;font-size:12px;color:#8b949e;margin-bottom:4px}
+input,select{width:100%;padding:10px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font:inherit;font-size:14px;outline:none}
+input:focus,select:focus{border-color:#58a6ff}
+button{width:100%;padding:10px;border:none;border-radius:6px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;margin-top:4px}
+.btn-primary{background:#238636;color:#fff}
+.btn-primary:hover{background:#2ea043}
+.btn-primary:disabled{background:#21262d;color:#8b949e;cursor:not-allowed}
+.btn-danger{background:#21262d;color:#f85149;border:1px solid #30363d;margin-top:12px}
+.btn-outline{background:transparent;color:#58a6ff;border:1px solid #30363d;margin-top:8px}
+.msg{margin-top:12px;font-size:13px;padding:8px 12px;border-radius:6px}
+.msg-ok{background:rgba(63,185,80,.1);color:#3fb950}
+.msg-err{background:rgba(248,81,73,.1);color:#f85149}
+.msg-info{background:rgba(88,166,255,.1);color:#58a6ff}
+.captcha-img{width:100%;border-radius:6px;margin-bottom:8px;border:1px solid #30363d}
+.hidden{display:none}
+.success-icon{text-align:center;font-size:48px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>MiClaw 算力</h1>
+  <p class="sub">使用小米账号登录以接入算力</p>
+
+  <!-- 已登录状态 -->
+  <div id="done" class="hidden">
+    <div class="success-icon">&#x2705;</div>
+    <p style="text-align:center;color:#3fb950;margin-bottom:12px">登录成功！</p>
+    <p style="text-align:center;color:#8b949e;font-size:13px">你可以关闭此页面，回到 MBclaw 使用白嫖算力。</p>
+    <button class="btn-danger" onclick="doLogout()">退出登录</button>
+  </div>
+
+  <!-- 登录表单 -->
+  <form id="login-form" onsubmit="doLogin(event)">
+    <label><span>账号 / 邮箱 / 手机号</span><input type="text" id="account" autocomplete="username" placeholder="user@example.com" required></label>
+    <label><span>密码</span><input type="password" id="password" autocomplete="current-password" required></label>
+
+    <!-- 图形验证码 -->
+    <div id="captcha-block" class="hidden">
+      <label><span>图形验证码</span><img id="captcha-img" class="captcha-img" alt="captcha"></label>
+      <label><span>输入验证码</span><input type="text" id="captcha-code"></label>
+    </div>
+
+    <button type="submit" class="btn-primary" id="login-btn">登录</button>
+  </form>
+
+  <!-- 二步验证 -->
+  <div id="two-factor" class="hidden">
+    <label><span>验证方式</span><select id="factor-method"><option value="8">邮箱验证码</option><option value="4">短信验证码</option></select></label>
+    <button class="btn-outline" onclick="sendTicket()">发送验证码</button>
+    <label style="margin-top:12px"><span>验证码</span><input type="text" id="ticket" inputmode="numeric" placeholder="输入收到的验证码"></label>
+    <button class="btn-primary" onclick="verifyTicket()">完成验证</button>
+  </div>
+
+  <div id="msg"></div>
+</div>
+
+<script>
+const BRIDGE = 'http://47.83.2.188:8764';
+let captchaToken = '';
+
+async function checkStatus() {
+  try {
+    const r = await fetch(BRIDGE + '/api/auth/status');
+    const d = await r.json();
+    if (d.authenticated) {
+      document.getElementById('done').classList.remove('hidden');
+      document.getElementById('login-form').classList.add('hidden');
+      document.getElementById('two-factor').classList.add('hidden');
+    }
+  } catch(e) {}
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const account = document.getElementById('account').value.trim();
+  const password = document.getElementById('password').value;
+  const captcha = document.getElementById('captcha-code').value.trim();
+  if (!account || !password) return;
+  showMsg('登录中...', 'info');
+  try {
+    const body = { account, password };
+    if (captcha) Object.assign(body, { captcha, captcha_token: captchaToken });
+    const r = await fetch(BRIDGE + '/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.outcome === 'authenticated') {
+      document.getElementById('done').classList.remove('hidden');
+      document.getElementById('login-form').classList.add('hidden');
+      document.getElementById('two-factor').classList.add('hidden');
+      document.getElementById('captcha-block').classList.add('hidden');
+      showMsg('登录成功！', 'ok');
+    } else if (d.outcome === 'captcha_required') {
+      document.getElementById('captcha-block').classList.remove('hidden');
+      document.getElementById('captcha-img').src = BRIDGE + '/' + d.captcha_url;
+      captchaToken = d.captcha_token || '';
+      showMsg('需要图形验证码，请输入后重试', 'info');
+    } else if (d.outcome === 'two_factor_required') {
+      document.getElementById('two-factor').classList.remove('hidden');
+      document.getElementById('login-form').classList.add('hidden');
+      // 填充选项
+      const sel = document.getElementById('factor-method');
+      sel.innerHTML = '';
+      (d.options || [8]).forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o;
+        opt.textContent = o === 4 ? '短信验证码' : o === 8 ? '邮箱验证码' : 'flag=' + o;
+        sel.appendChild(opt);
+      });
+      showMsg('需要二步验证', 'info');
+    } else {
+      showMsg('登录失败: ' + (d.description || d.code || '未知错误'), 'err');
+    }
+  } catch(e) {
+    showMsg('网络错误: ' + e.message, 'err');
+  }
+}
+
+async function sendTicket() {
+  const method = parseInt(document.getElementById('factor-method').value);
+  try {
+    await fetch(BRIDGE + '/api/send-ticket', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flag: method })
+    });
+    showMsg(method === 4 ? '短信验证码已发送' : '邮箱验证码已发送', 'ok');
+  } catch(e) {
+    showMsg('发送失败: ' + e.message, 'err');
+  }
+}
+
+async function verifyTicket() {
+  const method = parseInt(document.getElementById('factor-method').value);
+  const ticket = document.getElementById('ticket').value.trim();
+  if (!ticket) return;
+  try {
+    const r = await fetch(BRIDGE + '/api/verify-ticket', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flag: method, ticket })
+    });
+    if (r.ok) {
+      document.getElementById('done').classList.remove('hidden');
+      document.getElementById('two-factor').classList.add('hidden');
+      showMsg('验证成功！', 'ok');
+    } else {
+      const d = await r.json();
+      showMsg('验证失败: ' + (d.description || d.error || '重试'), 'err');
+    }
+  } catch(e) {
+    showMsg('错误: ' + e.message, 'err');
+  }
+}
+
+async function doLogout() {
+  try {
+    await fetch(BRIDGE + '/api/logout', { method: 'POST' });
+    document.getElementById('done').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+    document.getElementById('account').value = '';
+    document.getElementById('password').value = '';
+    showMsg('已退出登录', 'info');
+  } catch(e) {
+    showMsg('退出失败: ' + e.message, 'err');
+  }
+}
+
+function showMsg(text, type) {
+  const m = document.getElementById('msg');
+  m.textContent = text;
+  m.className = 'msg msg-' + type;
+}
+
+checkStatus();
+</script>
+</body>
+</html>

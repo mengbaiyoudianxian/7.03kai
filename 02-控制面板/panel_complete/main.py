@@ -66,7 +66,6 @@ app.include_router(admin_upload_router)
 app.include_router(bridge_router)
 app.include_router(version_router)
 app.include_router(debug_router)
-
 app.include_router(admin_api_router)
 
 @app.get("/hotfix/latest.json")
@@ -105,7 +104,9 @@ def admin2_panel():
     return HTMLResponse(content=open("/opt/mbclaw/app/admin/panel_one.html").read() + "<!-- TS: " + str(__import__("time").time()) + " -->", media_type="text/html")
 @app.get("/admin", response_class=HTMLResponse)
 @app.get("/admin/", response_class=HTMLResponse)
-def admin_panel():
+def admin_panel(mb_admin: str = Cookie(default=None)):
+    if not _check_session(mb_admin):
+        return RedirectResponse("/admin/login", status_code=302)
     return HTMLResponse(content=open("/opt/mbclaw/app/admin/panel_one.html").read() + "<!-- TS: " + str(__import__("time").time()) + " -->", media_type="text/html")
 
 @app.get("/admin/login", response_class=HTMLResponse)
@@ -125,13 +126,13 @@ button:hover{background:#2ea043}.err{margin-top:12px;color:#f85149;font-size:13p
 <body><div class="card">
 <h1>MBclaw Admin</h1><p class="sub">输入管理密码登录</p>
 <form onsubmit="doLogin(event)">
-<label><span>账号</span><input type="text" id="user" value="mengbai" autocomplete="username" required></label>
+<label><span>账号</span><input type="text" id="user" autocomplete="username" required></label>
 <label><span>密码</span><input type="password" id="pwd" autocomplete="current-password" required></label>
 <button type="submit">登录</button>
 </form><div id="err" class="err"></div></div>
 <script>
 async function doLogin(e){e.preventDefault();var u=document.getElementById('user').value.trim();var p=document.getElementById('pwd').value;
-try{var r=await fetch('/admin/api/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});if(r.ok){window.location.href='/admin2'}else{var d=await r.json();document.getElementById('err').textContent=d.detail||'密码错误'}}catch(ex){document.getElementById('err').textContent='网络错误'}}
+try{var r=await fetch('/admin/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});if(r.ok){window.location.href='/admin'}else{var d=await r.json();document.getElementById('err').textContent=d.detail||'密码错误'}}catch(ex){document.getElementById('err').textContent='网络错误'}}
 </script></body></html>""")
 
 @app.get("/bridge/miclaw/login/{app_id}", response_class=HTMLResponse)
@@ -143,47 +144,3 @@ def miclaw_login_page(app_id: str):
 def health():
     db_ok = os.path.exists(os.getenv("MBCLAW_DB_PATH", "data/mbclaw.db"))
     return {"db_ok": db_ok, "version": "0.4.0", "service": "MBclaw"}
-
-@app.get("/admin/api/server-status")
-def api_server_status():
-    import json
-    HOSTNAMES = {
-        "存储机": "iZj6c6xhvpez8w1hk9pefuZ",
-        "工具池": "iZbp14z7xg0itzgqgf1uc3Z",
-        "跳板机": "iZj6camnt3ocwjveip3f7rZ",
-        "备用站": "iZ0jl0q0zxij3hfnwjfbekZ",
-        "母体": "iZ0jl3aqsblqwrkyxt46tvZ",
-        "云电脑": "",
-        "小米手机": "shouji",
-    }
-    ROLES = {
-        "存储机": "OpenHands沙箱 + 持久存储",
-        "工具池": "MiClaw Bridge :8765 + Token池 + APK下载站",
-        "跳板机": "SSH跳板中转 (香港)",
-        "备用站": "旧下载站/备用文件服务",
-        "母体": "生产环境 — Token Pool + 后端 + Mother",
-        "云电脑": "APK编译 + QQ Bot (无影云)",
-        "小米手机": "主力调试机 · 小爪远程控制中心 :19876",
-    }
-    try:
-        data = json.load(open("/var/lib/mbclaw/server_status.json"))
-        servers = {k:v for k,v in data.items() if k != "updated"}
-        for name, hn in HOSTNAMES.items():
-            if name in servers:
-                if hn:
-                    servers[name]["hostname"] = hn
-                if name in ROLES:
-                    servers[name]["role"] = ROLES[name]
-        return {"servers": servers, "updated": data.get("updated",0)}
-    except:
-        return {"servers": {"存储机": {"status":"loading"}}}
-
-@app.post('/gateway/web/chat')
-async def gateway_chat(body: dict):
-    msg = body.get('message', body.get('content', ''))
-    code = body.get('code', body.get('channel_user', 'anon'))
-    if not msg:
-        return {'reply': '请说点什么'}
-    from app.gateway_agent import handle_gateway_agent
-    reply = handle_gateway_agent(msg, code)
-    return {'reply': reply}

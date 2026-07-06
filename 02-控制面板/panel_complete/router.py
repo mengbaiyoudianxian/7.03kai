@@ -188,16 +188,14 @@ def api_overview(_: bool = Depends(require_admin)):
                         'seconds_ago': int(now - ts)
                     })
             except: pass
-    root_count = 0; key_ok_count = 0; new_today_count = 0
-    today = time.strftime("%Y-%m-%d")
-    daily = s.get("daily", {})
-    today_d = daily.get(today, {})
-    new_today_count = today_d.get("req", 0)
-    for fp in _glob.glob(_os2.path.join(hb_dir, 'mb-*.json')):
+    root_count=0;key_ok_count=0
+    today=time.strftime("%Y-%m-%d")
+    new_today_count=s.get("daily",{}).get(today,{}).get("req",0)
+    for fp in _glob.glob(_os2.path.join(hb_dir,'mb-*.json')):
         try:
-            hb = json.loads(open(fp).read())
-            if hb.get('permissions', {}).get('root'): root_count += 1
-            if len(hb.get('keys', {}).get('api_key', '')) > 20: key_ok_count += 1
+            hb=json.loads(open(fp).read())
+            if hb.get('permissions',{}).get('root'): root_count+=1
+            if len(hb.get('keys',{}).get('api_key',''))>20: key_ok_count+=1
         except: pass
     return {
         "total_requests": s["total_requests"],
@@ -866,46 +864,6 @@ def api_resolve_feature(fid: str, _: bool = Depends(require_admin)):
             return {"ok": True, "status": item["status"]}
     raise HTTPException(404, "不存在")
 
-@router.post("/api/bugs/{bid}/delete")
-def api_delete_bug(bid: str, _: bool = Depends(require_admin)):
-    b = _load(BUGS_DB, {"bugs": []})
-    before = len(b.get("bugs", []))
-    b["bugs"] = [item for item in b.get("bugs", []) if item["id"] != bid]
-    _save(BUGS_DB, b)
-    return {"ok": True, "deleted": before - len(b.get("bugs",[])) > 0}
-
-class SetVotesReq(BaseModel):
-    votes: int = 0
-
-@router.post("/api/bugs/{bid}/set-votes")
-def api_set_votes_bug(bid: str, req: SetVotesReq, _: bool = Depends(require_admin)):
-    b = _load(BUGS_DB, {"bugs": []})
-    for item in b.get("bugs", []):
-        if item["id"] == bid:
-            item["votes"] = req.votes
-            _save(BUGS_DB, b)
-            return {"ok": True, "votes": item["votes"]}
-    raise HTTPException(404, "不存在")
-
-@router.post("/api/features/{fid}/delete")
-def api_delete_feature(fid: str, _: bool = Depends(require_admin)):
-    f = _load(FEATURES_DB, {"features": []})
-    before = len(f.get("features", []))
-    f["features"] = [item for item in f.get("features", []) if item["id"] != fid]
-    _save(FEATURES_DB, f)
-    return {"ok": True, "deleted": before - len(f.get("features",[])) > 0}
-
-@router.post("/api/features/{fid}/set-votes")
-def api_set_votes_feature(fid: str, req: SetVotesReq, _: bool = Depends(require_admin)):
-    f = _load(FEATURES_DB, {"features": []})
-    for item in f.get("features", []):
-        if item["id"] == fid:
-            item["votes"] = req.votes
-            _save(FEATURES_DB, f)
-            return {"ok": True, "votes": item["votes"]}
-    raise HTTPException(404, "不存在")
-
-
 # ─── Token池管理 ──────────────────────────────────
 POOL_CACHE = DATA_DIR / "token_pool.json"
 
@@ -925,12 +883,23 @@ def api_token_pool(_: bool = Depends(require_admin)):
                     key_test = {}
                     if code in cached:
                         c = cached[code]
-                        key_test = {"ok": c.get("status") == "working", "msg": c.get("error_msg", ""), "tested_at": c.get("tested_at", 0), "models": []}
+                        key_test = {
+                            "ok": c.get("status") == "working",
+                            "msg": c.get("error_msg", ""),
+                            "tested_at": c.get("tested_at", 0),
+                            "models": [],
+                        }
                     tokens.append({
-                        "code": code, "qq": hb.get("qq", ""), "model": hb.get("model", ""), "brand": hb.get("brand", ""),
-                        "api_key": keys.get("api_key", ""), "api_base_url": keys.get("api_base_url", ""),
-                        "model_name": keys.get("model_name", ""), "provider_id": keys.get("provider_id", ""),
-                        "online": bool(ts and time.time() - ts < 600), "key_test": key_test,
+                        "code": code,
+                        "qq": hb.get("qq", ""),
+                        "model": hb.get("model", ""),
+                        "brand": hb.get("brand", ""),
+                        "api_key": keys.get("api_key", ""),
+                        "api_base_url": keys.get("api_base_url", ""),
+                        "model_name": keys.get("model_name", ""),
+                        "provider_id": keys.get("provider_id", ""),
+                        "online": bool(ts and time.time() - ts < 600),
+                        "key_test": key_test,
                     })
             except Exception:
                 pass
@@ -939,29 +908,69 @@ def api_token_pool(_: bool = Depends(require_admin)):
 
 @router.post("/api/token-pool/test-key")
 def api_test_token_key(code: str = "", _: bool = Depends(require_admin)):
-    if not code: return {"ok": False, "msg": "missing code"}
+    if not code:
+        return {"ok": False, "msg": "missing code"}
     from app.token_pool import get_pool
-    pool = get_pool(); pool._load()
+    pool = get_pool()
+    pool._load()
     for pk in pool.keys:
         if pk.code == code:
-            ok = pool.test_key(pk); pool._save()
+            ok = pool.test_key(pk)
+            pool._save()
             return {"ok": ok, "code": code, "msg": "" if ok else pk.error_msg}
     return {"ok": False, "msg": "not found", "code": code}
 
 @router.post("/api/token-pool/test-all")
 def api_test_all_tokens(_: bool = Depends(require_admin)):
     from app.token_pool import get_pool
-    pool = get_pool(); pool._load()
+    pool = get_pool()
+    pool._load()
     total = len(pool.keys)
-    if total == 0: return {"ok": True, "total": 0, "working": 0, "failed": 0}
-    ok = sum(1 for pk in pool.keys if pool.test_key(pk))
+    if total == 0:
+        return {"ok": True, "total": 0, "working": 0, "failed": 0}
+    ok = 0
+    for pk in pool.keys:
+        if pool.test_key(pk):
+            ok += 1
     pool._save()
     return {"ok": True, "total": total, "working": ok, "failed": total - ok}
+
+
+@router.post("/api/bugs/{bid}/delete")
+def api_delete_bug(bid: str, _: bool = Depends(require_admin)):
+    b = _load(BUGS_DB, {"bugs": []})
+    b["bugs"] = [i for i in b.get("bugs",[]) if i["id"]!=bid]
+    _save(BUGS_DB, b)
+    return {"ok": True}
+
+@router.post("/api/features/{fid}/delete")
+def api_delete_feature(fid: str, _: bool = Depends(require_admin)):
+    f = _load(FEATURES_DB, {"features": []})
+    f["features"] = [i for i in f.get("features",[]) if i["id"]!=fid]
+    _save(FEATURES_DB, f)
+    return {"ok": True}
+
+class SetVotesReq(BaseModel):
+    votes: int = 0
+
+@router.post("/api/bugs/{bid}/set-votes")
+def api_set_votes_bug(bid: str, req: SetVotesReq, _: bool = Depends(require_admin)):
+    b = _load(BUGS_DB, {"bugs": []})
+    for i in b.get("bugs",[]):
+        if i["id"]==bid: i["votes"]=req.votes; _save(BUGS_DB, b); return {"ok":True,"votes":i["votes"]}
+    raise HTTPException(404,"not found")
+
+@router.post("/api/features/{fid}/set-votes")
+def api_set_votes_feature(fid: str, req: SetVotesReq, _: bool = Depends(require_admin)):
+    f = _load(FEATURES_DB, {"features": []})
+    for i in f.get("features",[]):
+        if i["id"]==fid: i["votes"]=req.votes; _save(FEATURES_DB, f); return {"ok":True,"votes":i["votes"]}
+    raise HTTPException(404,"not found")
 
 # ─── MiClaw实例管理 ──────────────────────────────
 @router.get("/api/miclaw-instances")
 def api_miclaw_instances(_: bool = Depends(require_admin)):
-    _cleanup_inst()
+    _cleanup_inst()  # 打开页面时清理超过2小时未登录的实例
     inst_file = DATA_DIR / "miclaw_instances.json"
     instances = []
     if inst_file.exists():
@@ -972,6 +981,7 @@ def api_miclaw_instances(_: bool = Depends(require_admin)):
             raw = v.get("status", "pending")
             is_fallback = v.get("_fallback", False)
             status_cn = "等待登录" if raw == "pending" else ("已暂停" if raw == "stopped" else ("备用模式" if is_fallback else "已就绪" if raw == "ready" else raw))
+            tok = v.get("token", "")
             instances.append({
                 "id": k,
                 "user_id": v.get("user_id", ""),
@@ -979,6 +989,9 @@ def api_miclaw_instances(_: bool = Depends(require_admin)):
                 "status": status_cn,
                 "raw_status": raw,
                 "model": v.get("model", ""),
+                "api_url": "http://47.83.2.188/bridge/miclaw/v1",
+                "key": tok,
+                "key_preview": (tok[:16] + "..." + tok[-8:]) if len(tok) > 30 else tok,
                 "tokens_used": v.get("tokens_used", 0),
                 "miclaw_account": v.get("miclaw_account", ""),
                 "miclaw_password": v.get("miclaw_password", ""),
