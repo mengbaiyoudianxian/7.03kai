@@ -31,11 +31,7 @@ async def lifespan(_app: FastAPI):
         wx = WechatAdapter()
         async def on_wx_msg(sm):
             from app.gateway_agent import handle_gateway_agent
-            from app.gateway.normalize import MessageNormalizer
-            norm = MessageNormalizer()
-            raw = {'channel': 'wechat', 'content': sm.content, 'user_id': sm.user_id}
-            msg = norm.normalize('wechat', raw)
-            return handle_gateway_agent(msg.content, msg.user_id)
+            return handle_gateway_agent(sm.content, sm.user_id)
         wx.set_on_message(on_wx_msg)
         reg.register('wechat', wx)
         import asyncio

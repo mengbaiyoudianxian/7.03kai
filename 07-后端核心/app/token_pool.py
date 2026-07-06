@@ -126,7 +126,7 @@ class TokenPool:
             return pk
         real_keys = [k for k in working if k.provider != "miclaw-bridge"]
         if real_keys:
-            pk = min(inst, key=lambda x: x.usage_count)
+            pk = min(real_keys, key=lambda x: x.usage_count)
             pk.usage_count += 1; pk.last_used = time.time(); self._save()
             return pk
         if not working:
