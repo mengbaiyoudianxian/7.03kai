@@ -43,6 +43,12 @@
 > 母体是信任边界内的生产核心，所有安全控制在外层 Gateway/Nginx 完成。
 > 任何向母体引入权限检查的代码变更一律拒绝。
 
+## 🚫 Docker 禁令
+
+> **所有服务器禁止使用 Docker。** 所有服务直接以进程方式运行（uvicorn / systemd / nohup）。
+> 不写 Dockerfile，不写 docker-compose.yml，不构建镜像，不运行容器。
+> 现有 `docker-compose.yml` 仅作文档参考，不用于实际部署。
+
 ## 服务器
 
 | 别称 | IP | 用途 |
