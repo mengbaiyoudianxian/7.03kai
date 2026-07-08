@@ -337,33 +337,6 @@ def mother_uploads(code: str):
 
 
 
-# ── Gateway: QQ Bot 消息接入 ──────────────────────
-from pydantic import BaseModel as _GatewayModel
-
-class _GatewayChatReq(_GatewayModel):
-    code: str = ''
-    message: str = ''
-    channel: str = 'qq'
-
-@router.post('/gateway/web/chat')
-def gateway_web_chat(req: _GatewayChatReq):
-    """QQ Bot 消息转发——调用母体LLM获取回复"""
-    from app.llm import get_llm
-    import os
-    try:
-        llm = get_llm()
-        # 临时对话sessions里找或新建
-        provider = os.environ.get('MBCLAW_PROVIDER', 'openai')
-        model = os.environ.get('MBCLAW_MODEL', 'gpt-4o')
-        msgs = [{"role": "user", "content": req.message}]
-        # 直接用 httpx 调 LLM
-        reply = llm.summarize_session(msgs)
-        if hasattr(reply, 'summary'):
-            return {"reply": reply.summary}
-        return {"reply": str(reply)}
-    except Exception as e:
-        return {"reply": f"[母体离线] {str(e)[:100]}"}
-
 # ── 客户端版本 + Linux环境 ──
 @router.get('/client/version')
 def client_version():

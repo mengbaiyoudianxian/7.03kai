@@ -517,7 +517,7 @@ def api_admin_metrics(_: bool = Depends(require_admin)):
     disk = shutil.disk_usage('/')
     mem = os.popen('free -m').read().split('\n')[1].split()[1:4] if hasattr(os,'popen') else ['0','0','0']
     try:
-        db_size = os.path.getsize('/opt/mbclaw/data/mbclaw.db') / 1024 / 1024
+        db_size = os.path.getsize('/opt/mbclaw/data/mother.db') / 1024 / 1024
     except:
         db_size = 0
     return {
@@ -864,75 +864,76 @@ def api_resolve_feature(fid: str, _: bool = Depends(require_admin)):
             return {"ok": True, "status": item["status"]}
     raise HTTPException(404, "不存在")
 
-# ─── Token池管理（代理到新 Token Pool :8100）───
-import httpx as _httpx
-TP = "http://127.0.0.1:8100"
-TP_AK = {"X-Admin-Key": "20070520@han"}
+# ─── Token池管理 ──────────────────────────────────
+
+TP_ADMIN_KEY = "20070520@han"
+
+def _tp_req(path, method="GET", timeout=30):
+    """调用本地 Token Pool API"""
+    import urllib.request as _ur
+
+    req = _ur.Request(
+        f"http://8.147.69.152:8100{path}",
+        headers={"X-Admin-Key": TP_ADMIN_KEY},
+    )
+    if method == "POST":
+        req.method = "POST"
+    with _ur.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read())
+
 
 @router.get("/api/token-pool")
-async def api_token_pool(_: bool = Depends(require_admin)):
-    async with _httpx.AsyncClient() as c:
-        # Get provider keys
-        r1 = await c.get(f"{TP}/api/keys", headers=TP_AK)
-        keys = r1.json()
-        tokens = [{
-            "code": k["alias"],
-            "qq": "",
-            "model": k.get("model", ""),
-            "brand": k.get("provider", ""),
-            "api_key": k.get("api_key", "")[:16] + "..." if k.get("api_key") else "",
-            "api_base_url": k.get("base_url", ""),
-            "model_name": k.get("model", ""),
-            "provider_id": k.get("provider", ""),
-            "online": k.get("status") == "working",
-            "key_test": {
-                "ok": k.get("status") == "working",
-                "msg": k.get("last_error", ""),
-                "tested_at": k.get("last_checked", 0),
-                "models": [k.get("model", "")] if k.get("status") == "working" else [],
-                "status_code": 200 if k.get("status") == "working" else 0,
-            }
-        } for k in keys if k.get("has_key")]
-        # Get user shared keys
-        try:
-            r2 = await c.get(f"{TP}/api/shared-keys/stats", headers=TP_AK)
-            shared = r2.json()
-            for s in shared:
+def api_token_pool(_: bool = Depends(require_admin)):
+    """Token池 — 直接读 heartbeat_logs，检测结果由前端 testKey 实时获取。"""
+    hb_dir = DATA_DIR / "heartbeat_logs"
+    tokens = []
+    now = time.time()
+    if hb_dir.is_dir():
+        for fp in sorted(hb_dir.glob("*.json")):
+            try:
+                hb = json.loads(fp.read_text(encoding="utf-8"))
+                keys = hb.get("keys", {})
+                if not keys.get("api_key"):
+                    continue
+                code = hb.get("code", "")
+                ts = hb.get("last_seen_ts", 0)
                 tokens.append({
-                    "code": s["user_code"],
-                    "qq": "",
-                    "model": s.get("model", ""),
-                    "brand": s.get("provider", ""),
-                    "api_key": "***shared***",
-                    "api_base_url": s.get("base_url", ""),
-                    "model_name": s.get("model", ""),
-                    "provider_id": s.get("provider", ""),
-                    "online": s.get("status") == "working",
-                    "key_test": {
-                        "ok": s.get("status") == "working",
-                        "msg": "",
-                        "tested_at": 0,
-                        "models": [s.get("model", "")],
-                        "status_code": 200 if s.get("status") == "working" else 0,
-                    }
+                    "code": code,
+                    "qq": hb.get("qq", ""),
+                    "model": hb.get("model", ""),
+                    "brand": hb.get("brand", ""),
+                    "api_key": keys.get("api_key", ""),
+                    "api_base_url": keys.get("api_base_url", ""),
+                    "model_name": keys.get("model_name", ""),
+                    "provider_id": keys.get("provider_id", ""),
+                    "online": bool(ts and now - ts < 600),
+                    "key_test": {"ok": None, "msg": "", "status_code": 0},
                 })
-        except: pass
-        tokens.sort(key=lambda x: (not x["online"], x["code"]))
-        return {"tokens": tokens, "total": len(tokens)}
+            except Exception:
+                pass
+    tokens.sort(key=lambda x: (not x["online"], x["code"]))
+    return {"tokens": tokens, "total": len(tokens)}
 
 @router.post("/api/token-pool/test-key")
-async def api_test_token_key(code: str = "", _: bool = Depends(require_admin)):
-    if not code: return {"ok": False, "msg": "missing code"}
-    async with _httpx.AsyncClient() as c:
-        r = await c.post(f"{TP}/api/keys/{code}/probe", headers=TP_AK)
-        d = r.json()
-        return {"ok": d.get("ok", False), "code": code, "msg": d.get("error", ""), "latency_ms": d.get("latency_ms", 0)}
+def api_test_token_key(code: str = "", _: bool = Depends(require_admin)):
+    if not code:
+        return {"ok": False, "msg": "missing code"}
+    try:
+        data = _tp_req(f"/api/shared-keys/legacy/test-key?code={code}", method="POST", timeout=20)
+        return {"ok": True, "code": code,
+                "key_test": data.get("key_test", {"ok": False, "msg": "no response"})}
+    except Exception as e:
+        return {"ok": False, "msg": str(e)[:100], "code": code}
 
 @router.post("/api/token-pool/test-all")
-async def api_test_all_tokens(_: bool = Depends(require_admin)):
-    async with _httpx.AsyncClient() as c:
-        r = await c.post(f"{TP}/api/keys/probe_all", headers=TP_AK)
-        return r.json()
+def api_test_all_tokens(_: bool = Depends(require_admin)):
+    try:
+        data = _tp_req("/api/shared-keys/probe-all", method="POST", timeout=120)
+        ok = sum(1 for r in data.get("results", []) if r.get("ok"))
+        fail = len(data.get("results", [])) - ok
+        return {"ok": True, "total": len(data.get("results", [])), "working": ok, "failed": fail}
+    except Exception as e:
+        return {"ok": False, "msg": str(e)[:100]}
 
 
 @router.post("/api/bugs/{bid}/delete")

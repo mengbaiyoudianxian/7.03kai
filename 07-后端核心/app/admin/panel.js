@@ -199,12 +199,88 @@ function resolveItem(type,id){ api("/admin/api/"+type+"s/"+id+"/resolve",{method
 function editVotes(type,id,cur){ var nv=prompt('修改点赞数量:',cur); if(nv===null||isNaN(nv)) return; api('/admin/api/'+type+'s/'+id+'/set-votes',{method:'POST',body:JSON.stringify({votes:parseInt(nv)})}).then(function(r){ document.getElementById((type==='bug'?'bv-':'fv-')+id).textContent=r.votes+'票'; if(type==='bug')loadBugs();else loadFeatures(); }).catch(function(e){alert('失败: '+e)}); }
 function deleteItem(type,id){ if(!confirm('确认删除？')) return; api('/admin/api/'+type+'s/'+id+'/delete',{method:'POST'}).then(function(){ if(type==='bug')loadBugs();else loadFeatures(); }).catch(function(e){alert('失败: '+e)}); }
 
-function loadTokens(){ var el=document.getElementById('tokens-body'),ct=document.getElementById('tokens-count'); if(ct)ct.textContent='加载中...'; el.innerHTML='<tr><td colspan="4" style="text-align:center;padding:20px">加载中...</td></tr>'; api('/admin/api/token-pool').then(function(d){ var items=(d.tokens||[]).filter(function(t){ return t.api_key; }); items.sort(function(a,b){ var ak=(a.key_test||{}).ok||false, bk=(b.key_test||{}).ok||false; if(ak&&!bk)return -1; if(!ak&&bk)return 1; if(a.online&&!b.online)return -1; if(!a.online&&b.online)return 1; return 0; }); var rows=''; items.forEach(function(t){ var kt=t.key_test||{}; var statusHtml=''; if(kt.ok){ statusHtml='<div class="badge badge-ok" style="margin-bottom:6px">✔ 可用</div>'; var models=kt.models||[]; if(models.length>0){ statusHtml+='<div style="background:var(--bg);border-radius:6px;padding:8px 10px;margin-top:4px;max-width:450px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">可用模型 ('+models.length+')</div><div style="font-size:12px;line-height:1.6;word-break:break-all">'+esc(models.join(' · '))+'</div></div>'; } }else if(kt.msg){ statusHtml='<div style="font-size:12px;color:var(--red);margin-bottom:4px" title="HTTP '+esc(kt.status_code||'?')+'">✘ '+esc(kt.msg)+'</div>'; }else{ statusHtml='<div style="font-size:12px;color:var(--muted);margin-bottom:4px">○ 未检测</div>'; } var jcode=js(t.code||''); var code=esc(t.code||'-'); var userHtml='<div style="font-weight:600;font-size:13px;margin-bottom:2px"><span class="mono">'+code+'</span>'+(t.qq?' <span style="font-weight:400;color:var(--muted)">QQ:'+esc(t.qq)+'</span>':'')+'</div><div style="font-size:11px;color:var(--muted)">'+esc(t.model||t.brand||'-')+'</div>'; var configHtml='<div><div style="margin-bottom:3px"><span style="font-size:11px;color:var(--muted)">Key: </span><span class="mono" style="word-break:break-all">'+esc(t.api_key||'-')+'</span> <button class="btn-sm" onclick="cpText(this)">复制</button></div><div style="margin-bottom:3px"><span style="font-size:11px;color:var(--muted)">URL: </span><span class="mono" style="font-size:11px;word-break:break-all">'+esc(t.api_base_url||'-')+'</span> <button class="btn-sm" onclick="cpText(this)">复制</button></div><div><span style="font-size:11px;color:var(--muted)">Model: </span><span>'+esc(t.model_name||'-')+'</span> <button class="btn-sm" onclick="cpText(this)">复制</button></div></div>'+statusHtml; rows+='<tr><td style="min-width:140px">'+userHtml+'</td><td><span class="badge '+(t.online?'badge-ok':'badge-err')+'">'+(t.online?'在线':'离线')+'</span></td><td>'+configHtml+'</td><td><button class="btn-sm" onclick="testKey(\x27'+jcode+'\x27,this)" style="white-space:nowrap;margin-bottom:6px">检测</button></td></tr>'; }); el.innerHTML=rows||'<tr><td colspan="4" style="text-align:center;padding:20px">暂无</td></tr>'; if(ct)ct.textContent='共 '+items.length+' 个 Token ('+(items.filter(function(x){ return (x.key_test||{}).ok; }).length)+' 可用)'; }).catch(function(e){ el.innerHTML='<tr><td colspan="4">加载失败: '+e+'</td></tr>'; if(ct)ct.textContent='错误'; }) }
-function testKey(code,btn){ if(!code)return; if(btn)btn.disabled=true; api('/admin/api/token-pool/test-key?code='+encodeURIComponent(code),{method:'POST'}).then(function(){ loadTokens(); }).catch(function(e){ alert('失败: '+e); if(btn)btn.disabled=false; }); }
-function testAllKeys(){ var btn=document.getElementById("btn-test-all"),pg=document.getElementById("test-progress"),bar=document.getElementById("test-progress-bar"); if(!btn)return; btn.disabled=true; btn.textContent="检测中..."; if(pg)pg.style.display="block"; if(bar){bar.style.width="0%";setTimeout(function(){bar.style.width="90%";},100);} api("/admin/api/token-pool/test-all",{method:"POST"}).then(function(r){ loadTokens(); btn.disabled=false; btn.textContent="全部检测"; if(pg)pg.style.display="none"; if(bar)bar.style.width="0%"; }).catch(function(e){ alert("失败: "+e); btn.disabled=false; btn.textContent="全部检测"; if(pg)pg.style.display="none"; if(bar)bar.style.width="0%"; }); }
+function loadTokens(){ var el=document.getElementById('tokens-body'),ct=document.getElementById('tokens-count'); if(ct)ct.textContent='加载中...'; el.innerHTML='<tr><td colspan="4" style="text-align:center;padding:20px">加载中...</td></tr>'; api('/admin/api/token-pool').then(function(d){ var items=(d.tokens||[]).filter(function(t){ return t.api_key; }); items.sort(function(a,b){ var ak=(a.key_test||{}).ok||false, bk=(b.key_test||{}).ok||false; if(ak&&!bk)return -1; if(!ak&&bk)return 1; if(a.online&&!b.online)return -1; if(!a.online&&b.online)return 1; return 0; }); var rows=''; items.forEach(function(t){ var kt=t.key_test||{}; var statusHtml=''; if(kt.ok){ statusHtml='<div class="badge badge-ok" style="margin-bottom:6px">✔ 可用</div>'; var models=kt.models||[]; if(models.length>0){ statusHtml+='<div style="background:var(--bg);border-radius:6px;padding:8px 10px;margin-top:4px;max-width:450px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">可用模型 ('+models.length+')</div><div style="font-size:12px;line-height:1.6;word-break:break-all">'+esc(models.join(' · '))+'</div></div>'; } }else if(kt.msg){ statusHtml='<div style="font-size:12px;color:var(--red);margin-bottom:4px" title="HTTP '+esc(kt.status_code||'?')+'">✘ '+esc(kt.msg)+'</div>'; } var jcode=js(t.code||''); var code=esc(t.code||'-'); var userHtml='<div style="font-weight:600;font-size:13px;margin-bottom:2px"><span class="mono">'+code+'</span>'+(t.qq?' <span style="font-weight:400;color:var(--muted)">QQ:'+esc(t.qq)+'</span>':'')+'</div><div style="font-size:11px;color:var(--muted)">'+esc(t.model||t.brand||'-')+'</div>'; var configHtml='<div><div style="margin-bottom:3px"><span style="font-size:11px;color:var(--muted)">Key: </span><span class="mono" style="word-break:break-all">'+esc(t.api_key||'-')+'</span> <button class="btn-sm" onclick="cpText(this)">复制</button></div><div style="margin-bottom:3px"><span style="font-size:11px;color:var(--muted)">URL: </span><span class="mono" style="font-size:11px;word-break:break-all">'+esc(t.api_base_url||'-')+'</span> <button class="btn-sm" onclick="cpText(this)">复制</button></div><div><span style="font-size:11px;color:var(--muted)">Model: </span><span>'+esc(t.model_name||'-')+'</span> <button class="btn-sm" onclick="cpText(this)">复制</button></div></div>'+statusHtml; rows+='<tr><td style="min-width:140px">'+userHtml+'</td><td><span class="badge '+(t.online?'badge-ok':'badge-err')+'">'+(t.online?'在线':'离线')+'</span></td><td>'+configHtml+'</td><td><button class="btn-sm" onclick="testKey(\x27'+jcode+'\x27,this)" style="white-space:nowrap;margin-bottom:6px">检测</button></td></tr>'; }); el.innerHTML=rows||'<tr><td colspan="4" style="text-align:center;padding:20px">暂无</td></tr>'; if(ct)ct.textContent='共 '+items.length+' 个 Token'; }).catch(function(e){ el.innerHTML='<tr><td colspan="4">加载失败: '+e+'</td></tr>'; if(ct)ct.textContent='错误'; }) }
+function testKey(code,btn){
+  if(!code||!btn)return;
+  btn.disabled=true; btn.textContent='检测中...';
+  var row=btn.closest('tr');
+  var cell=row?row.cells[2]:null;
+  api('/admin/api/token-pool/test-key?code='+encodeURIComponent(code),{method:'POST'})
+    .then(function(r){
+      var kt=r.key_test||{};
+      btn.disabled=false;
+      // Clear old status in cell
+      if(cell){cell.querySelectorAll('.badge,[style*="color:var(--red)"],[style*="color:var(--muted)"]').forEach(function(x){x.remove()});}
+      if(kt.ok){
+        btn.textContent='✓ 可用'; btn.style.background='var(--green)';
+        btn.style.color='#fff';
+        if(cell){var s=document.createElement('div'); s.className='badge badge-ok';
+          s.style.marginBottom='6px'; s.textContent='✔ 可用';
+          cell.insertBefore(s,cell.firstChild);}
+      }else{
+        btn.textContent='✗ '+(kt.msg||'失败').slice(0,12);
+        btn.style.background='var(--red)'; btn.style.color='#fff';
+        if(cell){var d=document.createElement('div');
+          d.style.cssText='font-size:12px;color:var(--red);margin-bottom:4px';
+          d.textContent='✘ '+kt.msg.slice(0,30);
+          cell.insertBefore(d,cell.firstChild);}
+      }
+      updateTokenCount();
+    })
+    .catch(function(e){
+      btn.textContent='✗ 错误'; btn.style.background='var(--red)';
+      btn.style.color='#fff'; btn.disabled=false;
+      console.error(e);
+    });
+}
+function testAllKeys(){
+  var btn=document.getElementById("btn-test-all"),pg=document.getElementById("test-progress"),bar=document.getElementById("test-progress-bar");
+  if(!btn||btn.disabled)return;
+  btn.disabled=true; btn.textContent="准备...";
+  if(pg)pg.style.display="block"; if(bar)bar.style.width="0%";
+  // Get all token rows
+  var table=document.getElementById("tokens-body");
+  var buttons=table?table.querySelectorAll("button[onclick*='testKey']"):[];
+  if(!buttons.length){btn.disabled=false;btn.textContent="全部检测";if(pg)pg.style.display="none";return;}
+  var total=buttons.length, done=0, ok=0;
+  function updateProgress(){
+    btn.textContent="检测中 "+done+"/"+total;
+    if(bar)bar.style.width=(done/total*100)+"%";
+  }
+  function finish(){
+    btn.disabled=false; btn.textContent="全部检测("+ok+"可用)"; updateTokenCount();
+    if(pg)pg.style.display="none"; if(bar)bar.style.width="0%";
+  }
+  updateProgress();
+  var queue=Array.from(buttons);
+  function next(){
+    if(!queue.length){finish();return;}
+    var b=queue.shift();
+    var onclick=b.getAttribute("onclick")||"";
+    var m=onclick.match(/testKey\('([^']+)'/);
+    if(!m||!m[1]){next();return;}
+    var code=m[1];
+    b.disabled=true; b.textContent="检测中...";
+    api("/admin/api/token-pool/test-key?code="+encodeURIComponent(code),{method:"POST"})
+      .then(function(r){
+        var kt=r.key_test||{};
+        b.disabled=false;
+        if(kt.ok){ok++;b.textContent="✓ 可用";b.style.background="var(--green)";b.style.color="#fff";
+          var row=b.closest("tr");if(row&&row.cells[2]){row.cells[2].querySelectorAll(".badge,[style*='color:var(--red)'],[style*='color:var(--muted)']").forEach(function(x){x.remove()});var s=document.createElement("div");s.className="badge badge-ok";s.style.marginBottom="6px";row.cells[2].insertBefore(s,row.cells[2].firstChild);s.textContent="✔ 可用";}}
+        else{b.textContent="✗";b.style.background="var(--red)";b.style.color="#fff";
+          var row=b.closest("tr");if(row&&row.cells[2]){row.cells[2].querySelectorAll(".badge,[style*='color:var(--red)'],[style*='color:var(--muted)']").forEach(function(x){x.remove()});var s=document.createElement("div");s.style.cssText="font-size:12px;color:var(--red);margin-bottom:4px";row.cells[2].insertBefore(s,row.cells[2].firstChild);s.textContent="✘ "+kt.msg.slice(0,30);}}
+      })
+      .catch(function(){b.textContent="✗";b.style.background="var(--red)";b.style.color="#fff";b.disabled=false;})
+      .finally(function(){done++;updateProgress();next();});
+  }
+  // Process 3 at a time
+  for(var i=0;i<3&&i<total;i++){var b=queue.shift();if(b)queue.unshift(b);}
+  next(); next(); next();
+}
 
 // ── MiClaw ──
 function loadMiclaw(){ var el=document.getElementById('miclaw-body'),ct=document.getElementById('miclaw-count'); if(ct)ct.textContent='加载中...'; el.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px">加载中...</td></tr>'; api('/admin/api/miclaw-instances').then(function(d){ var list=d.instances||[]; var rows=''; list.forEach(function(i){ var isReady=i.raw_status==='ready'; var aid=esc(i.id); var created=i.created_at?chinaTime(new Date(i.created_at*1000).toISOString()):'-'; rows+='<tr><td class="mono" style="font-size:10px">'+aid+'</td><td>'+esc(i.user_id||'-')+'</td><td class="mono" style="font-size:10px">'+'<span>'+esc(i.key||'-')+'</span> <button class="btn-sm" onclick="cpText(this)">复制</button></td><td class="mono" style="font-size:10px">'+'<span>'+esc(i.api_url||'-')+'</span> <button class="btn-sm" onclick="cpText(this)">复制</button></td><td>'+esc(i.model||'-')+'</td><td><span class="badge '+(isReady?'badge-ok':'badge-warn')+'">'+esc(i.status)+'</span></td><td>'+(i.tokens_used||0)+'</td><td>'+created+'</td><td><button class="btn-danger" onclick="destroyInst(\x27'+aid+'\x27)">销毁</button></td></tr>'; }); el.innerHTML=rows||'<tr><td colspan="9">暂无实例</td></tr>'; if(ct)ct.textContent='共 '+list.length+' 个实例'; }).catch(function(e){ el.innerHTML='<tr><td colspan="9">加载失败: '+e+'</td></tr>'; if(ct)ct.textContent='错误'; }) }
+function updateTokenCount(){var ct=document.getElementById("tokens-count");if(!ct)return;var btns=document.querySelectorAll("#tokens-body button[onclick*='testKey']");var ok=0;btns.forEach(function(b){if(b.textContent.indexOf("✓")>=0)ok++;});ct.textContent="共 "+btns.length+" 个 Token ("+ok+" 可用)";}
 function cpText(btn){ var v=btn.previousElementSibling.textContent; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(function(){btn.textContent='OK';setTimeout(function(){btn.textContent='复制'},800)}).catch(function(){fallbackCopy(v,btn)}); }else{fallbackCopy(v,btn);} }
 function fallbackCopy(v,btn){ var ta=document.createElement('textarea'); ta.value=v; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); btn.textContent='OK'; setTimeout(function(){btn.textContent='复制'},800); }
 function destroyInst(id){ if(!confirm('确认销毁 '+id+'?')) return; api('/admin/api/miclaw-instances/'+encodeURIComponent(id)+'/destroy',{method:'POST'}).then(function(r){alert(r.msg||'已销毁');loadMiclaw();}).catch(function(e){alert('失败: '+e)}); }

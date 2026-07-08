@@ -77,7 +77,8 @@ async def chat_completions(request: Request, authorization: str = Header(default
         raise HTTPException(503, f"All stream keys failed: {last_err}")
 
     try:
-        resp, alias = await call_with_fallback(payload, task)
+        model_req = (payload.get("model") or "").strip()
+        resp, alias = await call_with_fallback(payload, task, require_model=model_req)
         resp["_pool_alias"] = alias
         _record_usage(x_user_code, resp.get("usage", {}).get("total_tokens", 0))
         return JSONResponse(resp)

@@ -182,7 +182,7 @@ async def _call_anthropic(pk: ProviderKey, payload: dict, timeout=120) -> dict:
                       "completion_tokens": data.get("usage",{}).get("output_tokens",0)}}
 
 
-async def call_with_fallback(payload: dict, task: str = "chat", budget: float = 0.0,
+async def call_with_fallback(payload: dict, task: str = "chat", budget: float = 0.0, require_model: str = "",
                               max_retries: int = 3) -> tuple[dict, str]:
     """自动故障转移调用，返回 (response_dict, alias_used)。
 
@@ -194,7 +194,7 @@ async def call_with_fallback(payload: dict, task: str = "chat", budget: float = 
       5. 全部失败 → 抛出带诊断的 RuntimeError
     """
     rl = get_limiter(); hub = get_hub(); reg = get_registry(); tracker = get_tracker()
-    candidates = pick_all(task)
+    candidates = pick_all(task, require_model=require_model)
 
     if not candidates:
         raise RuntimeError("token pool 中没有可用的 Key（全部熔断或未配置）")

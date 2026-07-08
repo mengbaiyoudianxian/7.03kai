@@ -60,5 +60,19 @@ def _init_tables(conn: sqlite3.Connection):
         payload TEXT DEFAULT '{}',
         ts REAL
     );
+    CREATE TABLE IF NOT EXISTS mother_classification_nodes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        parent_id INTEGER REFERENCES mother_classification_nodes(id),
+        level INTEGER DEFAULT 1,
+        category_name TEXT,
+        summary TEXT DEFAULT '',
+        summary_detailed TEXT DEFAULT '',
+        failed_approaches TEXT DEFAULT '[]',
+        keywords TEXT DEFAULT '[]',
+        source_episodes TEXT DEFAULT '[]',
+        use_count INTEGER DEFAULT 0,
+        created_at REAL,
+        updated_at REAL
+    );
     """)
     conn.commit()

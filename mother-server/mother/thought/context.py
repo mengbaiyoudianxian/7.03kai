@@ -21,6 +21,10 @@ class ContextRuntime:
 
     def prime(self, user_query: str):
         snippets = recall_texts(user_query, top_n=3)
+        from mother.memory.classification import get_failed_for_context
+        failed_hint = get_failed_for_context(user_query, limit=3)
+        if failed_hint:
+            snippets = list(snippets) + [failed_hint]
         self.wm.set_recall(snippets)
 
     def add_user(self, content: str): self.wm.add_message("user", content)

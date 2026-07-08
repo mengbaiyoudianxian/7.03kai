@@ -94,7 +94,7 @@ class ThoughtRuntime:
                 tp = get_tp_client()
                 result = tp.chat_with_tools(
                     self.ctx.to_messages(), tools=TOOLS,
-                    task="chat", max_tokens=2000)
+                    task="chat", model="deepseek-chat", max_tokens=2000)
                 # P5-4: 成功后记录经验
                 _record_call_result("success", result.get("alias",""), result.get("model",""),
                                    result.get("tokens",0), task="chat")
@@ -145,8 +145,6 @@ class ThoughtRuntime:
             pass
 
         episode.complete(final_reply)
-        from mother.idle_scheduler import touch
-        touch()
         append_event("execution.complete", "engine",
                      {"goal": goal[:200], "turns": turn + 1, "tool_calls": len(tool_calls_log)})
 

@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Cookie, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import BaseModel, Field
 
 from config import cfg
 
@@ -39,7 +40,9 @@ async def _start_gateway():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from mother.evolution.daily import run_forever
+    from mother.idle_scheduler import run_forever as idle_run
     asyncio.ensure_future(run_forever())
+    asyncio.ensure_future(idle_run())
     await _start_gateway()
     yield
 
@@ -51,19 +54,13 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 from mother.mother_api import router as mother_router
 app.include_router(mother_router)
 
-from routes.auth_admin import router as auth_router, _check_session
-from routes.panel_html import _PANEL as PANEL
-
-app.include_router(auth_router, prefix="/admin")
+from mother.admin_panel import router as admin_router
+app.include_router(admin_router)
 
 
-@app.get("/", response_class=HTMLResponse)
-@app.get("/admin", response_class=HTMLResponse)
-@app.get("/admin/", response_class=HTMLResponse)
-def admin_panel(mb_admin: str = Cookie(default=None)):
-    if not _check_session(mb_admin):
-        return RedirectResponse("/admin/login", status_code=302)
-    return HTMLResponse(PANEL)
+@app.get("/")
+def root():
+    return RedirectResponse("/admin", status_code=302)
 
 
 @app.get("/health")
@@ -94,6 +91,34 @@ def wechat_accounts():
 
 from routes.wechat_qr import router as wechat_qr_router
 app.include_router(wechat_qr_router)
+
+
+# ── 统一网关: Web + CLI 渠道 ──
+
+class GatewayChatReq(BaseModel):
+    goal: str = Field(min_length=1, max_length=2000)
+    session_id: int = 0
+
+@app.post("/gateway/web/chat")
+async def gateway_web_chat(req: GatewayChatReq):
+    """WebUI 走统一网关 → 母体"""
+    from gateway.normalize import normalize_web
+    from gateway.agent import handle_message
+    msg = normalize_web(req.goal, user_code="admin")
+    msg.session_id = str(req.session_id % 100000)
+    reply = await handle_message(msg)
+    return {"reply": reply, "session_id": req.session_id}
+
+
+@app.post("/gateway/cli/chat")
+async def gateway_cli_chat(req: GatewayChatReq):
+    """CLI 走统一网关 → 母体"""
+    from gateway.normalize import normalize_cli
+    from gateway.agent import handle_message
+    msg = normalize_cli(req.goal)
+    msg.session_id = str(req.session_id % 100000)
+    reply = await handle_message(msg)
+    return {"reply": reply, "session_id": req.session_id}
 
 
 if __name__ == "__main__":

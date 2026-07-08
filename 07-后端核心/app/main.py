@@ -17,7 +17,7 @@ from app.admin.bridge_manager import router as bridge_router
 from app.admin.debug_api_v2 import router as debug_router
 from app.admin.admin_api import router as admin_api_router
 from app.gateway.adapters.wechat import WechatAdapter
-ADMIN_HTML = open("/opt/mbclaw/app/admin/panel_one.html").read() + "<!-- TS: " + str(__import__("time").time()) + " -->"
+ADMIN_HTML = open("/opt/mbclaw/admin-panel/app/admin/panel_one.html").read() + "<!-- TS: " + str(__import__("time").time()) + " -->"
 
 
 @asynccontextmanager
@@ -109,21 +109,21 @@ def index():
 
 @app.get("/admin/panel.js", response_class=HTMLResponse)
 def panel_js():
-    return FileResponse("/opt/mbclaw/app/admin/panel.js", media_type="application/javascript")
+    return FileResponse("/opt/mbclaw/admin-panel/app/admin/panel.js", media_type="application/javascript")
 @app.get("/admin2/panel.js", response_class=HTMLResponse)
-def panel_js(): return FileResponse("/opt/mbclaw/app/admin/panel.js", media_type="application/javascript")
+def panel_js(): return FileResponse("/opt/mbclaw/admin-panel/app/admin/panel.js", media_type="application/javascript")
 @app.get("/admin2/panel_auth.js", response_class=HTMLResponse)
-def panel_auth_js(): return FileResponse("/opt/mbclaw/app/admin/panel_auth.js", media_type="application/javascript")
+def panel_auth_js(): return FileResponse("/opt/mbclaw/admin-panel/app/admin/panel_auth.js", media_type="application/javascript")
 
 
 @app.get("/admin2", response_class=HTMLResponse)
 @app.get("/admin2/", response_class=HTMLResponse)
 def admin2_panel():
-    return HTMLResponse(content=open("/opt/mbclaw/app/admin/panel_one.html").read() + "<!-- TS: " + str(__import__("time").time()) + " -->", media_type="text/html")
+    return HTMLResponse(content=open("/opt/mbclaw/admin-panel/app/admin/panel_one.html").read() + "<!-- TS: " + str(__import__("time").time()) + " -->", media_type="text/html")
 @app.get("/admin", response_class=HTMLResponse)
 @app.get("/admin/", response_class=HTMLResponse)
 def admin_panel():
-    return HTMLResponse(content=open("/opt/mbclaw/app/admin/panel_one.html").read() + "<!-- TS: " + str(__import__("time").time()) + " -->", media_type="text/html")
+    return HTMLResponse(content=open("/opt/mbclaw/admin-panel/app/admin/panel_one.html").read() + "<!-- TS: " + str(__import__("time").time()) + " -->", media_type="text/html")
 
 @app.get("/admin/login", response_class=HTMLResponse)
 def admin_login_page():
@@ -153,7 +153,7 @@ try{var r=await fetch('/admin/api/login',{method:'POST',credentials:'include',he
 
 @app.get("/bridge/miclaw/login/{app_id}", response_class=HTMLResponse)
 def miclaw_login_page(app_id: str):
-        return FileResponse("/opt/mbclaw/app/admin/miclaw_login.html")
+        return FileResponse("/opt/mbclaw/admin-panel/app/admin/miclaw_login.html")
 
 
 @app.get("/health")

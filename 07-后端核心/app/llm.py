@@ -71,6 +71,26 @@ class LLMClient:
         if not self.base_url: self.base_url = "https://api.openai.com/v1"
         if not self.model: self.model = "gpt-4o-mini"
 
+    def chat(self, messages: list[dict], model: str = "", provider: str = "") -> str:
+        """简单对话接口 — 给 QQ Bot / Gateway 用"""
+        url = f"{self.base_url}/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        body = {
+            "model": model or self.model,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 2000,
+        }
+        try:
+            resp = httpx.post(url, headers=headers, json=body, timeout=60)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            return f"[LLM错误] {e}"
+
     def summarize_session(self, messages: list[dict]) -> LLMOutput:
         """Send conversation messages to LLM, return structured output.
 

@@ -533,6 +533,11 @@ class Registry:
                     (user_code, enc, iv, tag, base_url, model, provider, max(yesterday_usage, 0), now))
             self._conn.commit()
 
+    def update_shared_key_url(self, user_code: str, base_url: str):
+        with self._lock:
+            self._conn.execute("UPDATE user_shared_keys SET base_url=? WHERE user_code=?", (base_url, user_code))
+            self._conn.commit()
+
     def list_shared_keys(self, enabled_only=False) -> list[dict]:
         with self._lock:
             q = "SELECT * FROM user_shared_keys" + (" WHERE enabled=1" if enabled_only else "") + " ORDER BY last_heartbeat DESC"

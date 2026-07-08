@@ -165,6 +165,29 @@ def worker_run(req: WorkerReq):
     except HTTPException: raise
     except Exception as e: raise HTTPException(500, str(e))
 
+# ── Classification ──
+@router.get("/classification/tree")
+def classification_tree(root_id: int = None):
+    from mother.memory.classification import get_tree
+    return {"tree": get_tree(root_id)}
+
+@router.get("/classification/failed")
+def classification_failed(limit: int = 20):
+    from mother.memory.classification import get_failed_approaches
+    return {"failed": get_failed_approaches(limit)}
+
+@router.post("/classification/classify/{episode_id}")
+def classification_trigger(episode_id: str, bg: BackgroundTasks):
+    from mother.classification_engine import classify_episode
+    bg.add_task(classify_episode, episode_id)
+    return {"ok": True}
+
+@router.get("/classification/stats")
+def classification_stats():
+    from mother.memory.classification import count as node_count
+    from mother.memory.experience import count as exp_count
+    return {"classification_nodes": node_count(), "experiences": exp_count()}
+
 # ── Token Pool ──
 @router.get("/token_pool/health")
 def tp_health():

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from pool.registry import get_registry
 from pool.miclaw_pool import login_all_pending, probe_all_accounts, get_pool_stats, login_account, check_account_health, logout_account, send_2fa_ticket, verify_2fa
 from pool.encryption import encrypt, decrypt
+from pool.url_guard import validate_url
 import httpx
 
 router = APIRouter(prefix="/api/shared-keys", tags=["user_stats"])
@@ -16,6 +17,10 @@ def _auth(k):
 
 class RatioUpdate(BaseModel):
     ratio: float
+
+
+class UrlUpdate(BaseModel):
+    base_url: str
 
 
 @router.get("/stats")
@@ -40,6 +45,21 @@ def set_ratio(user_code: str, body: RatioUpdate):
     reg = get_registry()
     reg.update_shared_key_ratio(user_code, ratio)
     return {"user_code": user_code, "allowed_ratio": ratio, "ok": True}
+
+
+@router.post("/{user_code}/url")
+def set_url(user_code: str, body: UrlUpdate, x_admin_key: str = Header(default="")):
+    """P1-7: 修改共享Key的 base_url"""
+    _auth(x_admin_key)
+    url = body.base_url.strip()
+    if not url:
+        raise HTTPException(400, "URL 不能为空")
+    ok, msg = validate_url(url)
+    if not ok:
+        raise HTTPException(400, f"URL 校验失败: {msg}")
+    reg = get_registry()
+    reg.update_shared_key_url(user_code, url)
+    return {"user_code": user_code, "base_url": url, "ok": True}
 
 
 # ── P2-12: MiClaw 账号归属 + 借用白名单 ──
@@ -95,48 +115,90 @@ def set_borrower(account_id: int, body: BorrowerUpdate):
                                shared_ratio=body.shared_ratio)
     return {"account_id": account_id, "ok": True}
 
+def _test_key_chat(api_key: str, base_url: str, model_name: str = "") -> dict:
+    """实际对话检测，返回 {ok, msg, status_code, models, latency_ms}"""
+    import httpx
+    models = []
+    latency_ms = 0
+    # 步骤1: /models
+    try:
+        r = httpx.get(f"{base_url.rstrip('/')}/models",
+                       headers={"Authorization": f"Bearer {api_key}"}, timeout=8)
+        if r.status_code == 200:
+            latency_ms = r.elapsed.total_seconds() * 1000
+            try: models = [m["id"] for m in r.json().get("data", [])]
+            except: pass
+    except Exception:
+        pass
+    # 步骤2: chat completion
+    test_model = model_name or (models[0] if models else "gpt-3.5-turbo")
+    try:
+        chat_url = base_url.rstrip("/")
+        if not chat_url.endswith("/chat/completions"):
+            if "/v1" in chat_url:
+                chat_url = chat_url.split("/v1")[0] + "/v1/chat/completions"
+            else:
+                chat_url += "/chat/completions"
+        r = httpx.post(chat_url, json={
+            "model": test_model, "messages": [{"role": "user", "content": "hi"}],
+            "max_tokens": 5,
+        }, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            return {"ok": True, "msg": f"回复: {reply[:60]}", "status_code": 200, "models": models, "latency_ms": latency_ms}
+        else:
+            detail = ""
+            try: detail = r.json().get("error", {}).get("message", "")[:80]
+            except: detail = r.text[:80] if r.text else ""
+            return {"ok": False, "msg": f"对话失败 HTTP {r.status_code} {detail}", "status_code": r.status_code, "models": models, "latency_ms": latency_ms}
+    except Exception as e:
+        return {"ok": False, "msg": str(e)[:80], "status_code": 0, "models": models, "latency_ms": latency_ms}
+
+
 @router.post("/probe-all")
 def probe_all_user_keys(x_admin_key: str = Header(default="")):
+    """全部检测—遍历 heartbeat_logs，发实际对话验证。"""
     _auth(x_admin_key)
-    reg = get_registry()
-    keys = reg._conn.execute("SELECT user_code, encrypted_key, key_iv, key_tag, base_url FROM user_shared_keys").fetchall()
+    import os as _os, json as _json
+    hb_dir = "/var/lib/mbclaw/heartbeat_logs"
     results = []
-    import httpx, time as _time
-    for k in keys:
+    if not _os.path.isdir(hb_dir):
+        return {"ok": True, "results": results}
+    for fn in sorted(_os.listdir(hb_dir)):
         try:
-            api_key = decrypt(k["encrypted_key"], k["key_iv"], k["key_tag"])
-            url = f"{k['base_url'].rstrip('/')}/models"
-            r = httpx.get(url, headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
-            ok = r.status_code == 200
-            status = "working" if ok else "failed"
-            results.append({"user_code": k["user_code"], "ok": ok, "status": status, "latency_ms": r.elapsed.total_seconds()*1000 if ok else 0, "error": "" if ok else f"HTTP {r.status_code}"})
-        except Exception as e:
-            results.append({"user_code": k["user_code"], "ok": False, "status": "failed", "latency_ms": 0, "error": str(e)[:100]})
-    for r in results:
-        reg._conn.execute("UPDATE user_shared_keys SET status=?, last_heartbeat=? WHERE user_code=?", (r["status"], _time.time(), r["user_code"]))
-    reg._conn.commit()
+            d = _json.load(open(_os.path.join(hb_dir, fn)))
+        except Exception:
+            continue
+        keys = d.get("keys", {})
+        api_key = keys.get("api_key", "")
+        base_url = keys.get("api_base_url", "")
+        if not api_key or not base_url:
+            continue
+        code = d.get("code", "")
+        kt = _test_key_chat(api_key, base_url, keys.get("model_name", ""))
+        results.append({"user_code": code, "ok": kt["ok"], "msg": kt.get("msg", ""),
+                         "models": kt.get("models", []), "status_code": kt.get("status_code", 0)})
     return {"ok": True, "results": results}
+
 
 @router.post("/{user_code}/probe")
 def probe_one_user_key(user_code: str, x_admin_key: str = Header(default="")):
+    """单条检测—从 heartbeat_logs 读 key/url，发实际对话验证。"""
     _auth(x_admin_key)
-    reg = get_registry()
-    k = reg._conn.execute("SELECT encrypted_key, key_iv, key_tag, base_url FROM user_shared_keys WHERE user_code=?", (user_code,)).fetchone()
-    if not k: raise HTTPException(404, "not found")
-    try:
-        api_key = decrypt(k["encrypted_key"], k["key_iv"], k["key_tag"])
-        url = f"{k['base_url'].rstrip('/')}/models"
-        import httpx, time as _time
-        r = httpx.get(url, headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
-        ok = r.status_code == 200
-        status = "working" if ok else "failed"
-        reg._conn.execute("UPDATE user_shared_keys SET status=?, last_heartbeat=? WHERE user_code=?", (status, _time.time(), user_code))
-        reg._conn.commit()
-        return {"ok": ok, "status": status, "latency_ms": r.elapsed.total_seconds()*1000 if ok else 0, "error": "" if ok else f"HTTP {r.status_code}"}
-    except Exception as e:
-        reg._conn.execute("UPDATE user_shared_keys SET status=?, last_heartbeat=? WHERE user_code=?", ("failed", __import__("time").time(), user_code))
-        reg._conn.commit()
-        return {"ok": False, "status": "failed", "error": str(e)[:100]}
+    d = _read_hb_file(user_code)
+    if not d:
+        raise HTTPException(404, f"用户 {user_code} 不存在")
+    keys = d.get("keys", {})
+    api_key = keys.get("api_key", "")
+    base_url = keys.get("api_base_url", "")
+    if not api_key:
+        raise HTTPException(400, "没有 API Key")
+    if not base_url:
+        raise HTTPException(400, "没有 API URL")
+    kt = _test_key_chat(api_key, base_url, keys.get("model_name", ""))
+    return {"ok": kt["ok"], "status": "working" if kt["ok"] else "failed",
+            "error": kt.get("msg", ""), "models": kt.get("models", [])}
 
 @router.get("/miclaw-accounts/{account_id}/probe")
 def probe_miclaw(account_id: int):
@@ -209,3 +271,122 @@ def set_password(account_id: int, body: PwdReq):
     reg._conn.execute("UPDATE miclaw_accounts SET encrypted_password=?, password_iv=?, password_tag=? WHERE id=?", (enc["ciphertext"], enc["iv"], enc["tag"], account_id))
     reg._conn.commit()
     return {"ok": True}
+
+
+# ── Legacy 兼容：旧管理面板 Token池 数据接口 ──
+
+# ── 心跳文件读取辅助 ──
+def _read_hb_file(code: str) -> dict | None:
+    """从控制面板 heartbeat_logs 读取设备数据，与控制面板同源。"""
+    import os as _os, json as _json
+    safe = code.replace("/", "_").replace("..", "_")
+    path = _os.path.join("/var/lib/mbclaw/heartbeat_logs", f"{safe}.json")
+    if not _os.path.exists(path):
+        return None
+    return _json.load(open(path))
+
+
+@router.get("/legacy/tokens")
+def legacy_tokens(x_admin_key: str = Header(default="")):
+    """Token池乌托邦数据源 — 直接读控制面板 heartbeat_logs，与控制面板同源。"""
+    _auth(x_admin_key)
+    import os as _os, json as _json, time as _time
+    hb_dir = "/var/lib/mbclaw/heartbeat_logs"
+    tokens = []
+    if not _os.path.isdir(hb_dir):
+        return {"tokens": tokens}
+    entries = []
+    for fn in _os.listdir(hb_dir):
+        path = _os.path.join(hb_dir, fn)
+        try:
+            d = _json.load(open(path))
+        except Exception:
+            continue
+        keys = d.get("keys", {})
+        if not keys.get("api_key"):
+            continue
+        entries.append((_os.path.getmtime(path), d))
+    entries.sort(key=lambda x: x[0], reverse=True)
+    for _mtime, d in entries:
+        keys = d.get("keys", {})
+        tokens.append({
+            "code": d.get("code", ""),
+            "qq": keys.get("qq", ""),
+            "model": "",
+            "brand": "",
+            "api_key": keys.get("api_key", ""),
+            "api_base_url": keys.get("api_base_url", ""),
+            "model_name": keys.get("model_name", ""),
+            "provider": keys.get("provider_id", ""),
+            "online": bool(d.get("online", False)),
+            "key_test": {"ok": None, "msg": "", "status_code": 0},
+        })
+    return {"tokens": tokens}
+
+
+@router.post("/legacy/test-key")
+def legacy_test_key(code: str = "", x_admin_key: str = Header(default="")):
+    """Key 检测 — 从 heartbeat_logs 读 key/url，先测 /models 再发实际对话验证。"""
+    _auth(x_admin_key)
+    d = _read_hb_file(code)
+    if not d:
+        raise HTTPException(404, f"用户 {code} 不存在")
+    keys = d.get("keys", {})
+    api_key = keys.get("api_key", "")
+    base_url = keys.get("api_base_url", "").strip()
+    model_name = keys.get("model_name", "")
+    if not api_key:
+        raise HTTPException(400, "没有 API Key")
+    if not base_url:
+        raise HTTPException(400, "没有 API URL")
+    import httpx as _hx
+    models = []
+    # 步骤1: 获取模型列表
+    try:
+        r = _hx.get(f"{base_url.rstrip('/')}/models",
+                     headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
+        if r.status_code == 200:
+            try:
+                models = [m["id"] for m in r.json().get("data", [])]
+            except: pass
+    except Exception:
+        pass
+    # 步骤2: 实际发送对话验证
+    test_model = model_name or (models[0] if models else "gpt-3.5-turbo")
+    try:
+        # 从 base_url 推断 chat completions 端点
+        chat_url = base_url.rstrip('/')
+        if not chat_url.endswith('/chat/completions'):
+            if '/v1' in chat_url:
+                chat_url = chat_url.split('/v1')[0] + '/v1/chat/completions'
+            else:
+                chat_url += '/chat/completions'
+        r = _hx.post(chat_url, json={
+            "model": test_model,
+            "messages": [{"role": "user", "content": "hi"}],
+            "max_tokens": 5,
+        }, headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            return {"ok": True, "key_test": {
+                "ok": True, "msg": f"回复: {reply[:80]}",
+                "status_code": 200, "models": models,
+            }}
+        else:
+            detail = ""
+            try: detail = r.json().get("error", {}).get("message", "")[:80]
+            except: detail = r.text[:80] if r.text else ""
+            return {"ok": True, "key_test": {
+                "ok": False,
+                "msg": f"对话失败 HTTP {r.status_code} {detail}",
+                "status_code": r.status_code, "models": models,
+            }}
+    except Exception as e:
+        return {"ok": True, "key_test": {
+            "ok": False, "msg": f"对话异常: {str(e)[:80]}",
+            "status_code": 0, "models": models,
+        }}

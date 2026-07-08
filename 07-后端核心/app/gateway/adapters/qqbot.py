@@ -30,7 +30,7 @@ class QQBotAdapter(AdapterBase):
 
     async def start(self) -> None:
         self._app_id = os.environ.get('QQ_BOT_APPID', '1904147233')
-        self._secret = os.environ.get('QQ_BOT_SECRET', '68yb1EF2cy60g8MN')
+        self._secret = os.environ.get('QQ_BOT_SECRET', '08HQalw8KXkyCRgwCTl3MfzJezLh4RpD')
         token = self._get_access_token()
         if not token:
             print('[qqbot] failed to get access token')
@@ -53,13 +53,15 @@ class QQBotAdapter(AdapterBase):
             await self._ws.send(json.dumps({
                 'op': 2, 'd': {
                     'token': f'QQBot {token}',
-                    'intents': 402653184,
+                    'intents': 436207616,
                     'shard': [0, 1],
                 }
             }))
             # 5. 等待 READY
-            async for raw in self._ws:
+            while True:
+                raw = await self._ws.recv()
                 p = json.loads(raw)
+                self._seq = p.get('s', self._seq)
                 if p.get('t') == 'READY':
                     print(f"[qqbot] ready! session={p['d'].get('session_id','')}")
                     break
@@ -84,8 +86,10 @@ class QQBotAdapter(AdapterBase):
             except: break
 
     async def _listen(self):
-        async for raw in self._ws:
+        print('[qqbot] _listen() started')
+        while True:
             try:
+                raw = await self._ws.recv()
                 payload = json.loads(raw)
                 op = payload.get('op', 0)
                 if op == 11: continue  # Heartbeat ACK
@@ -97,6 +101,9 @@ class QQBotAdapter(AdapterBase):
                 t = payload.get('t', '')
                 d = payload.get('d', {})
 
+                print(f'[qqbot] event t={t}')
+                if t in ('C2C_MESSAGE_CREATE', 'GROUP_AT_MESSAGE_CREATE'):
+                    print(f'[qqbot] received content={d.get("content","")[:100]}')
                 if t == 'C2C_MESSAGE_CREATE':
                     msg = {
                         'channel': 'qq',

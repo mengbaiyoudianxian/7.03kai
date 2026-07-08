@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 TASK_ROUTING = {
     "code":      ["anthropic", "openai", "deepseek"],
     "reasoning": ["anthropic", "openai", "deepseek"],
-    "chat":      ["openai", "anthropic", "deepseek", "miclaw"],
+    "chat":      ["deepseek-cn", "zhipu", "openai", "anthropic", "deepseek", "miclaw"],
     "cheap":     ["deepseek", "dashscope", "miclaw", "local"],
     "bulk":      ["deepseek", "dashscope", "local"],
     "embedding": ["dashscope", "openai"],

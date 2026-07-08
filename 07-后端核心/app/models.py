@@ -22,8 +22,11 @@ class Session(Base):
     __tablename__ = "sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    session_number: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    context: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
